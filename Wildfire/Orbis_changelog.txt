@@ -1,0 +1,347 @@
+# ORBIS Wildfire Intelligence — Retrospective Development Log
+
+## Project Overview
+
+ORBIS is a wildfire and environmental intelligence platform developed as an independent project. Its aim is to combine meteorological conditions, vegetation/fuel conditions, terrain, human exposure and machine-learning methods to produce interpretable wildfire-risk information.
+
+The project was developed iteratively using Python and Streamlit, with external data sources and scientific modelling approaches progressively introduced and tested.
+
+AI tools were used throughout development as a programming and research assistant. They supported code generation, debugging, explanation of mathematical concepts, exploration of modelling approaches and software architecture. Final project decisions, feature selection, testing choices and evaluation of the system were directed and reviewed by the developer.
+
+---
+
+## Phase 1 — Initial Wildfire Risk Prototype
+
+### Early ORBIS versions
+
+The project began as a relatively simple wildfire-risk calculator based primarily on environmental conditions.
+
+Initial variables included:
+
+* Temperature
+* Relative humidity / atmospheric dryness
+* Wind speed
+* Precipitation
+
+A simple wildfire conditions index was created to convert these variables into a 0–100 risk score.
+
+Early testing was performed using locations such as Málaga, Spain and Warsop, Nottinghamshire.
+
+This stage established the basic concept of ORBIS and demonstrated that the system could accept a location and return an interpretable wildfire-risk assessment.
+
+---
+
+## Phase 2 — Interactive Location Intelligence
+
+### Development toward v0.2 and later versions
+
+The system was expanded to allow users to enter locations rather than relying on fixed coordinates.
+
+Geocoding was introduced using Open-Meteo services, allowing ORBIS to recognise locations ranging from major cities to smaller settlements such as Warsop.
+
+The system was also expanded to distinguish between:
+
+* Current conditions
+* Peak conditions / daily conditions
+
+This was important because instantaneous weather conditions can be misleading when assessing wildfire risk.
+
+---
+
+## Phase 3 — Scientific Fire-Weather Modelling
+
+### v44–v48
+
+The project moved from a simple score toward a multi-factor intelligence engine.
+
+Major additions included:
+
+* Canadian Fire Weather Index-inspired calculations
+* Fine Fuel Moisture Code-style calculations
+* Initial Spread Index calculations
+* Drought and soil-moisture variables
+* Terrain slope
+* Fuel-type classification
+* Human ignition pressure
+* Population exposure
+* Wildfire spread-rate approximations
+* Historical wildfire reconstruction
+
+The interface developed into a tactical-style dashboard with maps, risk metrics, explanations and downloadable audit information.
+
+A major focus during this period was reducing duplicated variables so that the same environmental factor was not counted repeatedly under different names.
+
+---
+
+## Phase 4 — Historical Intelligence and Forecasting
+
+### v49–v54
+
+ORBIS began incorporating longer-term environmental information rather than relying only on current weather.
+
+A Drought Stress Index (DSI) was introduced using antecedent temperature and precipitation conditions.
+
+Seasonality was also introduced so that wildfire risk could vary according to the relevant fire season in each hemisphere.
+
+The system gained:
+
+* Historical benchmark events
+* Multi-day reconstruction
+* Forecast trajectories
+* Population exposure estimates
+* Model confidence indicators
+* Enterprise-style asset monitoring concepts
+
+Machine learning became increasingly central to ORBIS.
+
+---
+
+## Phase 5 — Machine Learning Integration
+
+### v53–v58
+
+Random Forest models were introduced to replace purely hand-written risk equations.
+
+The project experimented with:
+
+* Random Forest classifiers
+* Feature importance
+* Model metrics
+* ROC-AUC
+* Precision
+* Recall
+* Accuracy
+* F1-score
+
+The training feature set expanded to include:
+
+* Temperature
+* Humidity
+* Wind
+* Soil moisture
+* NDVI / vegetation stress
+* Population density
+
+NASA FIRMS was also introduced as a potential source of active-fire observations.
+
+Later iterations explored combining FIRMS with ERA5-style meteorological information and Sentinel-2 vegetation information.
+
+The project became increasingly focused on data provenance and the difference between synthetic demonstration data and genuine empirical observations.
+
+---
+
+## Phase 6 — Spatial Intelligence
+
+### v59–v66
+
+The interface shifted toward true spatial interaction.
+
+Users could click on a map and ORBIS would:
+
+1. Obtain the selected coordinates.
+2. Retrieve weather information.
+3. Calculate wildfire-related variables.
+4. Run the machine-learning model.
+5. Produce a risk assessment.
+
+Population exposure was progressively incorporated into the risk framework.
+
+The system moved from a simple linear risk equation toward a cascading / multiplicative Hazard × Exposure × Vulnerability structure.
+
+This was an important conceptual development because wildfire hazard alone does not represent disaster risk: a dangerous fire environment and a highly exposed population can produce much greater consequences than either factor individually.
+
+---
+
+## Phase 7 — Explainability and Uncertainty
+
+### v67–v73
+
+Explainability became a major objective.
+
+ORBIS began showing:
+
+* Feature importance
+* Ranked risk drivers
+* Model prediction confidence
+* Ensemble variance
+* Historical benchmark similarity
+* Physical explanations for elevated risk
+
+Atmospheric physics was also strengthened through quantities such as:
+
+* Vapor Pressure Deficit (VPD)
+* Dead Fuel Moisture / Equilibrium Moisture Content
+* Fire-weather indices
+* Terrain effects
+
+The project also experimented with ensemble approaches to estimate uncertainty rather than presenting every model output as equally reliable.
+
+A major design principle emerged:
+
+> ORBIS should not only state the risk; it should explain why the risk is high and how confident the model is.
+
+---
+
+## Phase 8 — Scientific Validation
+
+### v74–v80
+
+The project began to focus more heavily on whether ORBIS could be scientifically defensible rather than simply visually impressive.
+
+Features introduced during this period included:
+
+* Strict dataset validation
+* Out-of-sample testing
+* Temporal train/test splits
+* Spatial validation concepts
+* ROC-AUC
+* Confusion matrices
+* Precision
+* Recall
+* F1-score
+* Probability calibration
+* Predicted-risk heatmaps
+* Historical disaster benchmarking
+
+The project increasingly recognised that very high performance on synthetic or randomly generated data does not automatically demonstrate real-world predictive ability.
+
+This led to a shift toward genuine empirical datasets and more rigorous validation methodologies.
+
+---
+
+## Phase 9 — Advanced Earth Observation Research
+
+### v81–v90
+
+ORBIS evolved toward a research-oriented Earth observation platform.
+
+The risk framework was formalised around:
+
+**Hazard × Exposure × Vulnerability**
+
+Additional concepts included:
+
+* NFDRS-style fuel moisture calculations
+* Rothermel-style slope effects
+* Long-term precipitation anomalies
+* Social coping capacity
+* Evacuation accessibility
+* Population exposure
+* Critical infrastructure exposure
+* Multi-layer GIS visualisation
+* Gradient Boosting
+* Random Forest comparison
+* XGBoost experimentation
+* SHAP explainability
+* Probability calibration
+* Spatial cross-validation
+* Matched pseudo-absence concepts
+
+The project also began designing an ETL architecture capable of combining:
+
+* NASA FIRMS fire detections
+* ERA5 / ERA5-Land climate information
+* Sentinel-2 vegetation information
+* SRTM terrain data
+* WorldPop / GHSL population information
+* OpenStreetMap evacuation / infrastructure information
+
+This marked a shift from simply building a wildfire calculator toward designing a complete environmental intelligence system.
+
+---
+
+# Major Lessons Learned During Development
+
+Several important limitations became clear during development.
+
+### 1. Synthetic data is not equivalent to real validation
+
+Synthetic data is useful for developing software architecture, but it cannot prove that ORBIS works operationally.
+
+Real-world validation requires genuine observations and independently defined labels.
+
+### 2. Current weather is not enough
+
+Wildfire risk depends on both immediate conditions and antecedent environmental conditions.
+
+This motivated the development of drought, moisture, vegetation and historical-context variables.
+
+### 3. Hazard is not the same as disaster risk
+
+A fire may be environmentally likely but have relatively low consequences in an isolated area.
+
+Exposure and vulnerability therefore became separate components of the ORBIS framework.
+
+### 4. Model accuracy alone is insufficient
+
+The project progressively introduced:
+
+* Out-of-sample testing
+* ROC-AUC
+* Precision
+* Recall
+* F1-score
+* Calibration
+* Spatial validation
+* Uncertainty estimation
+
+This reflects the need to assess whether predicted probabilities are meaningful rather than simply obtaining a high accuracy number.
+
+### 5. Explainability matters
+
+ORBIS was designed to explain the drivers behind a prediction rather than acting as a black-box score generator.
+
+---
+
+# Current Development Position
+
+The project has progressed from a simple wildfire-risk calculator into a prototype environmental intelligence platform combining:
+
+**Live meteorology + wildfire science + Earth observation architecture + machine learning + spatial analysis + exposure/vulnerability modelling + explainability + uncertainty + validation.**
+
+The next major development milestone should not simply be another increase in the version number.
+
+The most valuable next stage is to move from:
+
+**prototype development**
+
+to:
+
+**independent real-world validation.**
+
+That means obtaining genuinely matched historical wildfire observations and non-fire control observations, extracting the corresponding environmental variables, testing ORBIS on locations and time periods not used during training, calibrating the predicted probabilities, documenting uncertainty and obtaining independent expert feedback.
+
+The objective is no longer to continually add features. The objective is to determine whether ORBIS actually works.
+
+---
+
+# AI-Assisted Development Statement
+
+AI tools were used throughout the development of ORBIS as a programming, debugging and research assistant.
+
+AI assistance included:
+
+* Generating and restructuring Python code
+* Debugging errors
+* Explaining scientific equations and modelling concepts
+* Exploring machine-learning approaches
+* Suggesting data architectures
+* Improving the Streamlit interface
+* Comparing modelling approaches
+* Helping identify potential weaknesses in the system
+
+The developer remained responsible for selecting the project direction, deciding which features to implement, reviewing generated code, testing the software, identifying weaknesses and determining how ORBIS should ultimately be developed.
+
+The project therefore represents an AI-assisted development process rather than an AI-generated project developed without human direction.
+
+---
+
+# Retrospective Conclusion
+
+ORBIS has undergone extensive iterative development.
+
+The progression was broadly:
+
+**Simple wildfire score → interactive location model → fire-weather model → spatial intelligence system → historical analysis → machine learning → Earth observation architecture → explainability → uncertainty → scientific validation.**
+
+At this point, further improvement should primarily come from **better data, stronger validation and independent testing**, rather than continually increasing the software version number.

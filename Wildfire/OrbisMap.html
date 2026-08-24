@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_25edd8798ad890061be9ed9ff2b94505 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+    <script src="https://cdn.jsdelivr.net/gh/python-visualization/folium@main/folium/templates/leaflet_heat.min.js"></script>
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_25edd8798ad890061be9ed9ff2b94505" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_25edd8798ad890061be9ed9ff2b94505 = L.map(
+                "map_25edd8798ad890061be9ed9ff2b94505",
+                {
+                    center: [20.0, 0.0],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 2,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_d2fc6a2bf784771466e3296cb8eba78c = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_d2fc6a2bf784771466e3296cb8eba78c.addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+            var tile_layer_cb3c526046374e9d62b62d4990533243 = L.tileLayer(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 18,
+  "maxNativeZoom": 18,
+  "noWrap": false,
+  "attribution": "Esri",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_cb3c526046374e9d62b62d4990533243.addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+            var tile_layer_fbe2efed49c99cbab1ddfb9013207d4d = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors \u0026copy; \u003ca href=\"https://carto.com/attributions\"\u003eCARTO\u003c/a\u003e",
+  "subdomains": "abcd",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_fbe2efed49c99cbab1ddfb9013207d4d.addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+            var feature_group_bc79c8b6a416e58dde41af8706db40d0 = L.featureGroup(
+                {
+}
+            );
+        
+    
+            feature_group_bc79c8b6a416e58dde41af8706db40d0.addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+            var circle_marker_4f0bc3e071611285259846689e445b71 = L.circleMarker(
+                [36.8865728, 30.7030242],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 9.9, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_2a5c6cd0c789aa410bb2ec712950803d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_e139bb191494d2f09d2a0ee1e9968698 = $(`<div id="html_e139bb191494d2f09d2a0ee1e9968698" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Antalya<br>             <b>🔥 Risk Score:</b> 50/100<br>             <b>🚨 Alert:</b> MODERATE<br>             <b>🌡️ Temp:</b> 38.9°C<br>             <b>💧 Humidity:</b> 20%<br>             <b>💨 Wind:</b> 18.4 km/h<br>             <b>🌧️ Rainfall:</b> 0.0 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TEMPERATE             </div>`)[0];
+                popup_2a5c6cd0c789aa410bb2ec712950803d.setContent(html_e139bb191494d2f09d2a0ee1e9968698);
+            
+        
+
+        circle_marker_4f0bc3e071611285259846689e445b71.bindPopup(popup_2a5c6cd0c789aa410bb2ec712950803d)
+        ;
+
+        
+    
+    
+            var circle_marker_e94a93101606a9348b35503fcc27c9d9 = L.circleMarker(
+                [53.3042362, -1.1246168],
+                {"bubblingMouseEvents": true, "color": "lightgreen", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "lightgreen", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4.089599999999999, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_b3c597c14986975dcd4bb8f95c8963ee = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_25cdaea0aff47461d83f0d3dd9cc6441 = $(`<div id="html_25cdaea0aff47461d83f0d3dd9cc6441" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Worksop<br>             <b>🔥 Risk Score:</b> 20/100<br>             <b>🚨 Alert:</b> LOW<br>             <b>🌡️ Temp:</b> 21.8°C<br>             <b>💧 Humidity:</b> 40%<br>             <b>💨 Wind:</b> 17.6 km/h<br>             <b>🌧️ Rainfall:</b> 15.3 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TEMPERATE             </div>`)[0];
+                popup_b3c597c14986975dcd4bb8f95c8963ee.setContent(html_25cdaea0aff47461d83f0d3dd9cc6441);
+            
+        
+
+        circle_marker_e94a93101606a9348b35503fcc27c9d9.bindPopup(popup_b3c597c14986975dcd4bb8f95c8963ee)
+        ;
+
+        
+    
+    
+            var circle_marker_74b424c2f307d829b2e8429a4b890a64 = L.circleMarker(
+                [39.0167979, 125.7473609],
+                {"bubblingMouseEvents": true, "color": "green", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "green", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_6e4eb5379c948146a1f25eac4b71176d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_f0685c846a869b16ba374f2d78485aeb = $(`<div id="html_f0685c846a869b16ba374f2d78485aeb" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Pyongyang<br>             <b>🔥 Risk Score:</b> 19/100<br>             <b>🚨 Alert:</b> VERY LOW<br>             <b>🌡️ Temp:</b> 32.3°C<br>             <b>💧 Humidity:</b> 71%<br>             <b>💨 Wind:</b> 13.7 km/h<br>             <b>🌧️ Rainfall:</b> 87.0 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TEMPERATE             </div>`)[0];
+                popup_6e4eb5379c948146a1f25eac4b71176d.setContent(html_f0685c846a869b16ba374f2d78485aeb);
+            
+        
+
+        circle_marker_74b424c2f307d829b2e8429a4b890a64.bindPopup(popup_6e4eb5379c948146a1f25eac4b71176d)
+        ;
+
+        
+    
+    
+            var circle_marker_967462e75b4222b955e9d81dbdd32e01 = L.circleMarker(
+                [41.3281482, 19.8184435],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 9.676799999999998, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_6ab4d1d33bf9bd0b36cd2c377977e669 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_f3508f717a56a8961f2480b69cc02171 = $(`<div id="html_f3508f717a56a8961f2480b69cc02171" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Tirana<br>             <b>🔥 Risk Score:</b> 48/100<br>             <b>🚨 Alert:</b> MODERATE<br>             <b>🌡️ Temp:</b> 38.3°C<br>             <b>💧 Humidity:</b> 21%<br>             <b>💨 Wind:</b> 17.7 km/h<br>             <b>🌧️ Rainfall:</b> 0.0 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TEMPERATE             </div>`)[0];
+                popup_6ab4d1d33bf9bd0b36cd2c377977e669.setContent(html_f3508f717a56a8961f2480b69cc02171);
+            
+        
+
+        circle_marker_967462e75b4222b955e9d81dbdd32e01.bindPopup(popup_6ab4d1d33bf9bd0b36cd2c377977e669)
+        ;
+
+        
+    
+    
+            var circle_marker_b4a31cc8a216e1795bd4bd4caeaa5a08 = L.circleMarker(
+                [12.3681873, -1.5270944],
+                {"bubblingMouseEvents": true, "color": "lightgreen", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "lightgreen", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5.3736, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_817953b26ccc3960fbd1baba31e0d045 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_a4b724846febe29312b7531f881a3a28 = $(`<div id="html_a4b724846febe29312b7531f881a3a28" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Ouagadougou<br>             <b>🔥 Risk Score:</b> 27/100<br>             <b>🚨 Alert:</b> LOW<br>             <b>🌡️ Temp:</b> 35.1°C<br>             <b>💧 Humidity:</b> 44%<br>             <b>💨 Wind:</b> 8.4 km/h<br>             <b>🌧️ Rainfall:</b> 27.7 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TROPICAL             </div>`)[0];
+                popup_817953b26ccc3960fbd1baba31e0d045.setContent(html_a4b724846febe29312b7531f881a3a28);
+            
+        
+
+        circle_marker_b4a31cc8a216e1795bd4bd4caeaa5a08.bindPopup(popup_817953b26ccc3960fbd1baba31e0d045)
+        ;
+
+        
+    
+    
+            var circle_marker_3c737f31948dbf1fae6961690a95a3ee = L.circleMarker(
+                [6.8995498, 79.9058487],
+                {"bubblingMouseEvents": true, "color": "green", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "green", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_67fd00aeb1a4f97aa2d505996d7cfd77 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_d5da2c2841b247ab773d9bcec39338c0 = $(`<div id="html_d5da2c2841b247ab773d9bcec39338c0" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Sri Jayawardenepura Kotte<br>             <b>🔥 Risk Score:</b> 19/100<br>             <b>🚨 Alert:</b> VERY LOW<br>             <b>🌡️ Temp:</b> 29.4°C<br>             <b>💧 Humidity:</b> 68%<br>             <b>💨 Wind:</b> 20.0 km/h<br>             <b>🌧️ Rainfall:</b> 73.6 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TROPICAL             </div>`)[0];
+                popup_67fd00aeb1a4f97aa2d505996d7cfd77.setContent(html_d5da2c2841b247ab773d9bcec39338c0);
+            
+        
+
+        circle_marker_3c737f31948dbf1fae6961690a95a3ee.bindPopup(popup_67fd00aeb1a4f97aa2d505996d7cfd77)
+        ;
+
+        
+    
+    
+            var circle_marker_9fd98aa3e26b9f741ae9f8ea7636e566 = L.circleMarker(
+                [4.8895453, 114.9417574],
+                {"bubblingMouseEvents": true, "color": "lightgreen", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "lightgreen", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4.831200000000001, "stroke": true, "weight": 3}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+        var popup_dc4bf02eef845b402fa45d9022709526 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_c14f9519340f47b0b4bfdbb7da81467a = $(`<div id="html_c14f9519340f47b0b4bfdbb7da81467a" style="width: 100.0%; height: 100.0%;">             <b>🔥 Location:</b> Bandar Seri Begawan<br>             <b>🔥 Risk Score:</b> 24/100<br>             <b>🚨 Alert:</b> LOW<br>             <b>🌡️ Temp:</b> 33.2°C<br>             <b>💧 Humidity:</b> 56%<br>             <b>💨 Wind:</b> 11.3 km/h<br>             <b>🌧️ Rainfall:</b> 16.3 mm<br>             <b>🌿 Land Cover:</b> GRASSLAND<br>             <b>🌍 Climate Zone:</b> TROPICAL             </div>`)[0];
+                popup_dc4bf02eef845b402fa45d9022709526.setContent(html_c14f9519340f47b0b4bfdbb7da81467a);
+            
+        
+
+        circle_marker_9fd98aa3e26b9f741ae9f8ea7636e566.bindPopup(popup_dc4bf02eef845b402fa45d9022709526)
+        ;
+
+        
+    
+    
+            var heat_map_41e3498c7e50a10fe32655f77aa14f1a = L.heatLayer(
+                [[36.8865728, 30.7030242, 0.495], [53.3042362, -1.1246168, 0.20447999999999997], [39.0167979, 125.7473609, 0.19463999999999998], [41.3281482, 19.8184435, 0.48383999999999994], [12.3681873, -1.5270944, 0.26868], [6.8995498, 79.9058487, 0.19295999999999996], [4.8895453, 114.9417574, 0.24156000000000002]],
+                {
+  "minOpacity": 0.5,
+  "maxZoom": 18,
+  "radius": 25,
+  "blur": 15,
+}
+            );
+        
+    
+            heat_map_41e3498c7e50a10fe32655f77aa14f1a.addTo(map_25edd8798ad890061be9ed9ff2b94505);
+        
+    
+            map_25edd8798ad890061be9ed9ff2b94505.fitBounds(
+                [[36.8865728, 30.7030242], [53.3042362, -1.1246168], [39.0167979, 125.7473609], [41.3281482, 19.8184435], [12.3681873, -1.5270944], [6.8995498, 79.9058487], [4.8895453, 114.9417574]],
+                {}
+            );
+        
+    
+            var layer_control_64b1c2a197aef9d40289572a61150079_layers = {
+                base_layers : {
+                    "openstreetmap" : tile_layer_d2fc6a2bf784771466e3296cb8eba78c,
+                    "esriworldimagery" : tile_layer_cb3c526046374e9d62b62d4990533243,
+                    "cartodbpositron" : tile_layer_fbe2efed49c99cbab1ddfb9013207d4d,
+                },
+                overlays :  {
+                    "NASA Satellite Hotspots (24h)" : feature_group_bc79c8b6a416e58dde41af8706db40d0,
+                    "macro_element_41e3498c7e50a10fe32655f77aa14f1a" : heat_map_41e3498c7e50a10fe32655f77aa14f1a,
+                },
+            };
+            let layer_control_64b1c2a197aef9d40289572a61150079 = L.control.layers(
+                layer_control_64b1c2a197aef9d40289572a61150079_layers.base_layers,
+                layer_control_64b1c2a197aef9d40289572a61150079_layers.overlays,
+                {
+  "position": "topright",
+  "collapsed": true,
+  "autoZIndex": true,
+}
+            ).addTo(map_25edd8798ad890061be9ed9ff2b94505);
+
+        
+</script>
+</html>

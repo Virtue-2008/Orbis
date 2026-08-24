@@ -1,0 +1,86 @@
+ORBIS WILDFIRE DEVELOPMENT ROADMAP
+
+CURRENT VERSION
+
+✓ Real weather data
+
+✓ Interactive location search
+
+✓ Wildfire Conditions Index
+
+✓ Explainable outputs
+
+✓ AI-generated insights
+
+----------------------------------------
+
+SCIENTIFIC REVIEW
+
+✓ Testing completed
+
+✓ Major limitation identified:
+
+The model uses CURRENT conditions.
+
+Wildfire conditions should probably use:
+
+☐ Daily maximum temperature
+
+☐ Daily minimum humidity
+
+☐ Daily maximum wind speed
+
+☐ 7-day rainfall totals
+
+☐ Vegetation dryness
+
+☐ Soil moisture
+
+----------------------------------------
+
+NEXT STEPS
+
+1. Redesign the model
+
+2. Improve the data
+
+3. Validate the model
+
+4. Build Orbis Maps
+
+5. Build the website
+
+
+ORBIS WILDFIRE
+
+V1 ✅
+- Live weather data
+
+V2 ✅
+- Current conditions
+- Peak conditions
+- Interactive location search
+
+V3 ✅
+- 7-day rainfall
+- Fuel dryness
+- Validation testing
+
+V4 🔄
+- Climate classification
+
+V5
+- Automatic land-cover detection
+
+V6
+- Satellite hotspot detection
+
+V7
+- Interactive maps
+
+V8
+- Website
+
+
+V12
+- Improve environmental detection so that Orbis can detect whether a place is a desert, a rainforest or a temperate deciduous woodland

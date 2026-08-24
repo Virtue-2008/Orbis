@@ -1,0 +1,16 @@
+{
+    "model_version": "11.0_true_contrastive",
+    "training_samples": 5732,
+    "features": [
+        "slope",
+        "aspect_sin",
+        "aspect_cos",
+        "ndvi",
+        "w",
+        "w_channeled",
+        "emc",
+        "vpd",
+        "hdw",
+        "dist_to_road"
+    ]
+}

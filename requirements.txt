@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+requests
+shap
+matplotlib
+plotly
+scikit-learn
+xgboost
+joblib
+earthengine-api

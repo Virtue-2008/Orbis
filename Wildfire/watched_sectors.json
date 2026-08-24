@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Malibu, California",
+    "lat": 34.0259,
+    "lon": -118.7798,
+    "contact_phone": "+15550192834",
+    "contact_email": "chief@malibufire.gov"
+  },
+  {
+    "name": "Boulder, Colorado",
+    "lat": 40.015,
+    "lon": -105.2705,
+    "contact_phone": "+15550192835",
+    "contact_email": "eoc@bouldercounty.gov"
+  }
+]

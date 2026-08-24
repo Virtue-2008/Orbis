@@ -1,0 +1,36 @@
+Locations:              Mode:
+
+Warsop
+Stourbridge
+Malaga 
+Athens
+Antalya
+Phoenix
+Los Angeles
+Jakarta
+Yellowknife
+Siberia
+Amazon Rainforest
+
+
+
+
+
+Active Or Recent Wildfire Locations:
+
+Locations:                  Current:                Peak:
+
+Stourbridge
+Los Angeles
+Athens
+Antalya
+
+
+
+Hot & Dry Locations
+
+Locations:               
+
+Phoenix
+Las Vegas
+Death Valley
