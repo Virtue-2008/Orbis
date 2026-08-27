@@ -171,132 +171,138 @@ else:
 
 st.markdown("---")
 
-# --- GLOBAL MAP DISPLAY (WATERMARK FIXED) ---
-st.markdown("### 🗺️ Global Asset Monitoring Map")
+try:
+    # --- GLOBAL MAP DISPLAY (WATERMARK FIXED) ---
+    st.markdown("### 🗺️ Global Asset Monitoring Map")
 
-if zone_results:
-    map_records = []
-    
-    for zone, res in zone_results.items():
-        prob = res['prob']
-        w = res['weather']
-        meta = res['meta']
+    if zone_results:
+        map_records = []
         
-        if prob < 0.30:
-            color = '#00FF00'
-        elif prob < 0.60:
-            color = '#FFD700'
-        else:
-            color = '#FF0000'
+        for zone, res in zone_results.items():
+            prob = res['prob']
+            w = res['weather']
+            meta = res['meta']
             
-        hover_text = (
-            f"<b>{zone}</b><br>"
-            f"🔥 <b>Risk Level: {prob*100:.1f}%</b><br>"
-            f"🌡️ Temp: {w['t']}°C<br>"
-            f"💧 Humidity: {w['rh']}%<br>"
-            f"💨 Wind: {w['w']} km/h"
+            if prob < 0.30:
+                color = '#00FF00'
+            elif prob < 0.60:
+                color = '#FFD700'
+            else:
+                color = '#FF0000'
+                
+            hover_text = (
+                f"<b>{zone}</b><br>"
+                f"🔥 <b>Risk Level: {prob*100:.1f}%</b><br>"
+                f"🌡️ Temp: {w['t']}°C<br>"
+                f"💧 Humidity: {w['rh']}%<br>"
+                f"💨 Wind: {w['w']} km/h"
+            )
+            
+            map_records.append({
+                "lat": meta["lat"],
+                "lon": meta["lon"],
+                "color": color,
+                "hover": hover_text
+            })
+            
+        df_map = pd.DataFrame(map_records)
+        
+        fig_map = go.Figure(go.Scattermapbox(
+            lat=df_map['lat'],
+            lon=df_map['lon'],
+            mode='markers',
+            marker=go.scattermapbox.Marker(
+                size=15,
+                color=df_map['color'],
+                opacity=0.8
+            ),
+            text=df_map['hover'],
+            hoverinfo='text'
+        ))
+        
+        fig_map.update_layout(
+            mapbox_style="open-street-map",  # Free open tiles, no watermarks
+            margin={"r":0, "t":0, "l":0, "b":0},
+            height=450,
+            mapbox=dict(
+                center=dict(lat=10, lon=0),
+                zoom=1.2
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         
-        map_records.append({
-            "lat": meta["lat"],
-            "lon": meta["lon"],
-            "color": color,
-            "hover": hover_text
-        })
-        
-    df_map = pd.DataFrame(map_records)
-    
-    fig_map = go.Figure(go.Scattermapbox(
-        lat=df_map['lat'],
-        lon=df_map['lon'],
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=15,
-            color=df_map['color'],
-            opacity=0.8
-        ),
-        text=df_map['hover'],
-        hoverinfo='text'
-    ))
-    
-    fig_map.update_layout(
-        mapbox_style="open-street-map",  # Free open tiles, no watermarks
-        margin={"r":0, "t":0, "l":0, "b":0},
-        height=450,
-        mapbox=dict(
-            center=dict(lat=10, lon=0),
-            zoom=1.2
-        ),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
+        st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
 
-st.markdown("---")
+    st.markdown("---")
 
-# --- DIAGNOSTIC DASHBOARD ---
-st.markdown("### Monitored Assets Database")
+    # --- DIAGNOSTIC DASHBOARD ---
+    st.markdown("### Monitored Assets Database")
 
-if zone_results:
-    tabs = st.tabs(list(zone_results.keys()))
+    if zone_results:
+        tabs = st.tabs(list(zone_results.keys()))
 
-    for i, (zone, result) in enumerate(zone_results.items()):
-        with tabs[i]:
-            prob = result['prob']
-            c1, c2, c3 = st.columns([1, 1.5, 1])
-            
-            with c1:
-                fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = prob * 100,
-                    title = {'text': "Current Risk", 'font': {'size': 18}},
-                    number = {'suffix': "%", 'valueformat': '.1f'},
-                    gauge = {
-                        'axis': {'range': [0, 100]},
-                        'bar': {'color': "darkred"},
-                        'steps': [
-                            {'range': [0, 30], 'color': "lightgreen"},
-                            {'range': [30, 60], 'color': "gold"},
-                            {'range': [60, 100], 'color': "salmon"}
-                        ]
-                    }
-                ))
-                fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
-                st.plotly_chart(fig_gauge, use_container_width=True)
-                st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
+        for i, (zone, result) in enumerate(zone_results.items()):
+            with tabs[i]:
+                prob = result['prob']
+                c1, c2, c3 = st.columns([1, 1.5, 1])
                 
-                if result['meta']['ndvi'] < 0.12:
-                    st.info("🏜️ **Safety Mask Active:** Barren terrain detected. False alarm suppressed.")
-                
-            with c2:
-                st.markdown("**AI Diagnostic: What is driving this risk?**")
-                st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
-                
-                explainer = shap.TreeExplainer(inference_model)
-                shap_values = explainer.shap_values(result['input'])
-                
-                shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": shap_values[0]})
-                shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
-                shap_df = shap_df.sort_values(by="Impact", ascending=True)
-                
-                fig_shap, ax = plt.subplots(figsize=(6, 2.8))
-                colors = ['#ff4b4b' if x > 0 else '#1c83e1' for x in shap_df['Impact']]
-                
-                ax.barh(shap_df['Readable'], shap_df['Impact'], color=colors, height=0.6)
-                ax.axvline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.6)
-                ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
-                ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
-                ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
-                
-                plt.tight_layout()
-                st.pyplot(fig_shap, transparent=True)
-                
-            with c3:
-                st.markdown("**Real-Time Telemetry**")
-                w = result['weather']
-                st.write(f"🌡️ **Temp:** {w['t']}°C")
-                st.write(f"💧 **Humidity:** {w['rh']}%")
-                st.write(f"💨 **Wind:** {w['w']} km/h")
-else:
-    st.info("No assets currently being monitored. Add a location using the sidebar.")
+                with c1:
+                    fig_gauge = go.Figure(go.Indicator(
+                        mode = "gauge+number",
+                        value = prob * 100,
+                        title = {'text': "Current Risk", 'font': {'size': 18}},
+                        number = {'suffix': "%", 'valueformat': '.1f'},
+                        gauge = {
+                            'axis': {'range': [0, 100]},
+                            'bar': {'color': "darkred"},
+                            'steps': [
+                                {'range': [0, 30], 'color': "lightgreen"},
+                                {'range': [30, 60], 'color': "gold"},
+                                {'range': [60, 100], 'color': "salmon"}
+                            ]
+                        }
+                    ))
+                    fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
+                    st.plotly_chart(fig_gauge, use_container_width=True)
+                    st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
+                    
+                    if result['meta']['ndvi'] < 0.12:
+                        st.info("🏜️ **Safety Mask Active:** Barren terrain detected. False alarm suppressed.")
+                    
+                with c2:
+                    st.markdown("**AI Diagnostic: What is driving this risk?**")
+                    st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
+                    
+                    explainer = shap.TreeExplainer(inference_model)
+                    shap_values = explainer.shap_values(result['input'])
+                    
+                    shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": shap_values[0]})
+                    shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
+                    shap_df = shap_df.sort_values(by="Impact", ascending=True)
+                    
+                    fig_shap, ax = plt.subplots(figsize=(6, 2.8))
+                    colors = ['#ff4b4b' if x > 0 else '#1c83e1' for x in shap_df['Impact']]
+                    
+                    ax.barh(shap_df['Readable'], shap_df['Impact'], color=colors, height=0.6)
+                    ax.axvline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.6)
+                    ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
+                    ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
+                    ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig_shap, transparent=True)
+                    
+                with c3:
+                    st.markdown("**Real-Time Telemetry**")
+                    w = result['weather']
+                    st.write(f"🌡️ **Temp:** {w['t']}°C")
+                    st.write(f"💧 **Humidity:** {w['rh']}%")
+                    st.write(f"💨 **Wind:** {w['w']} km/h")
+    else:
+        st.info("No assets currently being monitored. Add a location using the sidebar.")
+
+except Exception as e:
+    st.error(f"⚠️ Layout Rendering Exception caught: {e}")
+    import traceback
+    st.code(traceback.format_exc())
