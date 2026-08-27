@@ -25,9 +25,16 @@ st.warning(
 # PART 1: THE SCIENTIFIC CORE (The "Brain")
 # =====================================================================
 MODEL_FILE = "orbis_production_model.joblib"
-MODEL_FEATURES = ['t', 'rh', 'w', 'ndvi', 'slope', 'vpd', 'emc']
 
-# Load the production model directly to bypass cloud caching closure errors
+# The exact 18 features the production joblib artifact was trained on
+MODEL_FEATURES = [
+    't', 'rh', 'w', 'slope', 'aspect_sin', 'aspect_cos', 'ndvi', 
+    'w_channeled', 'emc', 'vpd', 'hdw', 'ffwi', 'topo_drying', 
+    'fuel_dryness', 'atmo_combustion_index', 'rh_vpd_ratio', 
+    'fuel_moisture_deficit', 'wind_vpd'
+]
+
+# Load the production model directly
 if os.path.exists(MODEL_FILE):
     inference_model = joblib.load(MODEL_FILE)
     engine_status = "ONLINE (Calibrated Core)"
@@ -38,7 +45,13 @@ else:
 feature_names_map = {
     't': 'Temperature', 'rh': 'Humidity', 'w': 'Wind Speed', 
     'ndvi': 'Vegetation Fuel', 'slope': 'Terrain Steepness', 
-    'vpd': 'Air Drying Power', 'emc': 'Fuel Moisture'
+    'vpd': 'Air Drying Power', 'emc': 'Fuel Moisture',
+    'aspect_sin': 'Aspect (Sin)', 'aspect_cos': 'Aspect (Cos)',
+    'w_channeled': 'Channeled Wind', 'hdw': 'Hot-Dry-Wind Index',
+    'ffwi': 'Fire Weather Index', 'topo_drying': 'Topographic Drying',
+    'fuel_dryness': 'Fuel Dryness Factor', 'atmo_combustion_index': 'Combustion Index',
+    'rh_vpd_ratio': 'RH-VPD Ratio', 'fuel_moisture_deficit': 'Moisture Deficit',
+    'wind_vpd': 'Wind-VPD Interaction'
 }
 
 # =====================================================================
@@ -62,7 +75,7 @@ def geocode_location(query_str):
     return None, None, None
 
 def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
-    """Fetches global real-time weather via Open-Meteo API for any coordinates."""
+    """Fetches global real-time weather via Open-Meteo API and calculates all 18 features."""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         resp = requests.get(url, timeout=5).json()["current"]
@@ -72,11 +85,29 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     except Exception as e:
         return None, None, {"error": str(e)}
 
-    # Derived Physics
+    # Derived Physics & Extended Interaction Features matching training schema
     vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
+    aspect_sin = 0.0
+    aspect_cos = 1.0
+    w_channeled = w * np.cos(np.radians(static_slope))
+    hdw = w * vpd
+    ffwi = (w * t) / (rh + 1.0)
+    topo_drying = static_slope * vpd
+    fuel_dryness = 100.0 / (emc + 1.0)
+    atmo_combustion_index = t * vpd / (rh + 1.0)
+    rh_vpd_ratio = rh / (vpd + 0.01)
+    fuel_moisture_deficit = 30.0 - emc
+    wind_vpd = w * vpd
+
+    row_data = [[
+        t, rh, w, static_slope, aspect_sin, aspect_cos, static_ndvi,
+        w_channeled, emc, vpd, hdw, ffwi, topo_drying,
+        fuel_dryness, atmo_combustion_index, rh_vpd_ratio,
+        fuel_moisture_deficit, wind_vpd
+    ]]
     
-    input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=MODEL_FEATURES)
+    input_df = pd.DataFrame(row_data, columns=MODEL_FEATURES)
     
     try:
         raw_prob = float(inference_model.predict_proba(input_df)[0][1])
@@ -276,11 +307,10 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    # Use a generic explainer wrapped around predict_proba to safely evaluate CalibratedClassifierCV
+                    # Safe model-agnostic explainer matching the 18-feature schema
                     explainer = shap.Explainer(inference_model.predict_proba, result['input'])
                     shap_explanation = explainer(result['input'])
                     
-                    # Extract values for the positive class (index 1)
                     if len(shap_explanation.values.shape) == 3:
                         s_vals = shap_explanation.values[0, :, 1]
                     else:
