@@ -77,6 +77,11 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
     
     input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=MODEL_FEATURES)
+    
+    # Ensure feature names match what the loaded model expects
+    if hasattr(inference_model, "feature_names_in_"):
+        input_df.columns = inference_model.feature_names_in_
+        
     raw_prob = float(inference_model.predict_proba(input_df)[0][1])
     
     # Desert Fuel Safety Mask
