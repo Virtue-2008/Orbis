@@ -139,7 +139,6 @@ st.markdown("**Automated Wildfire Threat Monitoring & Notification System**")
 st.caption(f"Last automated sweep: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC | Engine Status: {engine_status}")
 st.markdown("---")
 
-# Initialize session state for zones cleanly
 DEFAULT_ZONES = {
     "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
     "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
@@ -155,7 +154,6 @@ st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
 
-# Instant live feedback container showing coordinates immediately as you type
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
     if lat is not None:
@@ -163,7 +161,6 @@ if user_query:
     else:
         st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name.")
 
-# Button OR pressing enter handler to isolate custom location
 search_triggered = st.sidebar.button("Search & Monitor Location", type="primary")
 
 if search_triggered and user_query:
@@ -175,7 +172,6 @@ if search_triggered and user_query:
             prob, _, _ = fetch_live_telemetry(lat, lon)
             
             if prob is not None:
-                # Completely wipe out presets and only keep this custom asset
                 st.session_state.client_zones = {
                     f"Custom Asset: {full_display}": {
                         "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
@@ -236,13 +232,12 @@ try:
             w = res['weather']
             meta = res['meta']
             
-            # Explicit, guaranteed color coordination matching risk levels
             if prob < 0.30:
-                marker_color = '#00CC44'  # Green (Low Risk)
+                marker_color = '#00CC44'  # Green
             elif prob < 0.60:
-                marker_color = '#FFCC00'  # Yellow/Amber (Medium Risk)
+                marker_color = '#FFCC00'  # Yellow/Amber
             else:
-                marker_color = '#FF3333'  # Red (High Risk)
+                marker_color = '#FF3333'  # Red
                 
             hover_text = (
                 f"<b>{zone}</b><br>"
