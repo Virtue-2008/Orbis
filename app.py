@@ -76,11 +76,10 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
     
-    # Use the model's exact expected feature names if available, otherwise use default MODEL_FEATURES
-    features_to_use = getattr(inference_model, "feature_names_in_", MODEL_FEATURES)
+    input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=MODEL_FEATURES)
     
-    input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=features_to_use[:7])
-    raw_prob = float(inference_model.predict_proba(input_df)[0][1])
+    # Pass raw values to bypass strict booster feature name checks
+    raw_prob = float(inference_model.predict_proba(input_df.values)[0][1])
     
     # Desert Fuel Safety Mask
     if static_ndvi < 0.12:
