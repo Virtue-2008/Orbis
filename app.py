@@ -56,20 +56,18 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates, ignoring case."""
+    """Converts a typed city/address into global Lat/Lon coordinates using a browser-like User-Agent to avoid blocks."""
     try:
-        # Lowercase and clean input to make it completely independent of capitalization
         clean_query = query_str.strip().lower().replace("'", " ")
         if not clean_query:
-            return None, None, None
+            return None, None, None, None
             
-        # OpenStreetMap Nominatim search endpoint with address details enabled
         url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=3"
-        headers = {'User-Agent': 'OrbisSentinel-ResearchApp-v2.5'}
+        # Using a standard browser user-agent avoids strict python-requests bot blocking/403s on Nominatim
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         resp = requests.get(url, headers=headers, timeout=5).json()
         
-        if resp:
-            # Grab the top match
+        if resp and isinstance(resp, list) and len(resp) > 0:
             lat = float(resp[0]["lat"])
             lon = float(resp[0]["lon"])
             name = resp[0]["display_name"].split(",")[0]
@@ -149,18 +147,16 @@ if 'client_zones' not in st.session_state:
 
 # --- SIDEBAR: CLEAN SEARCH BAR & LIVE COORDINATES DISPLAY ---
 st.sidebar.header("📍 Asset Location Search")
-st.sidebar.caption("Search is case-insensitive and handles slight variations.")
+st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. athens or valparaiso")
 
-# Container under the search bar to show resolved coordinates or suggestions
-coord_placeholder = st.sidebar.empty()
-
+# Instant live coordinate checking as you type
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
     if lat is not None:
-        coord_placeholder.info(f"🎯 **Resolved Location:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
+        st.sidebar.success(f"🎯 **Found:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
     else:
-        coord_placeholder.warning("⚠️ Did you mean something else? Check spelling or add country name.")
+        st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name (e.g. Athens, Greece).")
 
 if st.sidebar.button("Search & Monitor Location", type="primary"):
     if user_query:
@@ -183,7 +179,7 @@ if st.sidebar.button("Search & Monitor Location", type="primary"):
                     st.sidebar.error("Found location, but live weather data is currently unavailable.")
             else:
                 status.update(label="Geocoding failed", state="error")
-                st.sidebar.error("Could not match location. Try typing more explicitly (e.g., 'Athens, Greece').")
+                st.sidebar.error("Could not match location. Try typing more explicitly.")
 
 alerts = []
 zone_results = {}
