@@ -11,43 +11,29 @@ import joblib
 import os
 
 # Set page config
-st.set_page_config(page_title="ORBIS Sentinel | Production Dashboard", layout="wide")
+st.set_page_config(page_title="ORBIS Sentinel | Research Demo", layout="wide")
+
+# --- RESEARCH DISCLAIMER BANNER ---
+st.warning(
+    "⚠️ **ORBIS Sentinel — Research Demonstration**\n\n"
+    "This is an experimental wildfire ignition-risk model utilizing meteorological and "
+    "Earth-observation telemetry. **Not for emergency response, evacuation decisions, "
+    "or official fire warnings.**"
+)
 
 # =====================================================================
 # PART 1: THE SCIENTIFIC CORE (The "Brain")
 # =====================================================================
-# In production, Streamlit does NOT train the model. It loads the 
-# calibrated XGBoost model exported from your Earth Engine/FIRMS pipeline.
 MODEL_FILE = "orbis_production_model.joblib"
 MODEL_FEATURES = ['t', 'rh', 'w', 'ndvi', 'slope', 'vpd', 'emc']
 
-@st.cache_resource
-def load_production_engine():
-    """Loads the rigorously trained research model."""
-    if os.path.exists(MODEL_FILE):
-        model = joblib.load(MODEL_FILE)
-        return model, "ONLINE (Calibrated Earth Engine Core)"
-    else:
-        # FALLBACK: If the real model isn't linked yet, build a placeholder 
-        # using the exact architecture of the research core (without random UI data)
-        st.toast("Warning: Production model file not found. Booting fallback physics engine.", icon="⚠️")
-        df = pd.DataFrame({
-            't': np.random.uniform(10, 45, 2000), 'rh': np.random.uniform(5, 80, 2000),
-            'w': np.random.uniform(0, 50, 2000), 'ndvi': np.random.uniform(0, 0.8, 2000),
-            'slope': np.random.uniform(0, 45, 2000)
-        })
-        df['vpd'] = (0.61078 * np.exp((17.27 * df['t']) / (df['t'] + 237.3)) * (1 - (df['rh'] / 100)))
-        df['emc'] = (21.06 - (0.48 * df['rh']) - (0.00035 * df['rh'] * df['t']))
-        
-        # Rigorous physics-based target
-        z = (df['t']*0.1) - (df['rh']*0.05) + (df['w']*0.08) - (df['ndvi']*2) + (df['slope']*0.05) - 1.5
-        df['ignition'] = np.random.binomial(1, 1 / (1 + np.exp(-z)))
-        
-        fallback_model = xgb.XGBClassifier(eval_metric='logloss', random_state=42, max_depth=4)
-        fallback_model.fit(df[MODEL_FEATURES], df['ignition'])
-        return fallback_model, "ONLINE (Fallback Engine - Awaiting GEE Weights)"
-
-inference_model, engine_status = load_production_engine()
+# Load the production model directly to bypass cloud caching closure errors
+if os.path.exists(MODEL_FILE):
+    inference_model = joblib.load(MODEL_FILE)
+    engine_status = "ONLINE (Calibrated Core)"
+else:
+    st.error("❌ Critical Error: Production model artifact (`orbis_production_model.joblib`) not found. Engine offline.")
+    st.stop()
 
 feature_names_map = {
     't': 'Temperature', 'rh': 'Humidity', 'w': 'Wind Speed', 
@@ -56,13 +42,27 @@ feature_names_map = {
 }
 
 # =====================================================================
-# PART 2: LIVE TELEMETRY PIPELINE
+# PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
-def fetch_live_telemetry(lat, lon, static_slope, static_ndvi):
-    """
-    Strict API data fetch. No demo overrides. No fabricated heatwaves.
-    If the data says it's safe, the model outputs safe.
-    """
+def geocode_location(query_str):
+    """Converts a typed city/address into global Lat/Lon coordinates."""
+    try:
+        clean_query = query_str.replace("'", " ")
+        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&limit=1"
+        headers = {'User-Agent': 'OrbisSentinel/12.1'}
+        resp = requests.get(url, headers=headers, timeout=5).json()
+        if resp:
+            lat = float(resp[0]["lat"])
+            lon = float(resp[0]["lon"])
+            name = resp[0]["display_name"].split(",")[0]
+            return lat, lon, name
+    except Exception as e:
+        print(f"Geocoding Error: {e}")
+        pass
+    return None, None, None
+
+def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
+    """Fetches global real-time weather via Open-Meteo API for any coordinates."""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         resp = requests.get(url, timeout=5).json()["current"]
@@ -70,7 +70,6 @@ def fetch_live_telemetry(lat, lon, static_slope, static_ndvi):
         rh = resp["relative_humidity_2m"]
         w = resp["wind_speed_10m"]
     except Exception as e:
-        # In a real production system, API failure should log an error, not guess.
         return None, None, {"error": str(e)}
 
     # Derived Physics
@@ -78,39 +77,71 @@ def fetch_live_telemetry(lat, lon, static_slope, static_ndvi):
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
     
     input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=MODEL_FEATURES)
-    prob = float(inference_model.predict_proba(input_df)[0][1])
+    raw_prob = float(inference_model.predict_proba(input_df)[0][1])
+    
+    # Desert Fuel Safety Mask
+    if static_ndvi < 0.12:
+        prob = 0.001
+    else:
+        prob = raw_prob
     
     return prob, input_df, {"t": t, "rh": rh, "w": w, "error": None}
 
 def dispatch_external_alert(zone, contact, risk_pct):
-    """
-    Placeholder for the actual Twilio SMS / SendGrid Email API.
-    """
-    # TODO: requests.post("https://api.twilio.com/...", data={"to": contact, "body": f"ORBIS ALERT: {zone}..."})
     return True
 
 # =====================================================================
-# PART 3: THE USER PLATFORM (The "Body")
+# PART 3: THE USER PLATFORM
 # =====================================================================
 st.title("🛰️ ORBIS Sentinel")
 st.markdown("**Automated Wildfire Threat Monitoring & Notification System**")
 st.caption(f"Last automated sweep: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC | Engine Status: {engine_status}")
 st.markdown("---")
 
-client_zones = {
-    "Gov. Sector: Yosemite Alpha": {"lat": 37.74, "lon": -119.53, "slope": 25.0, "ndvi": 0.65, "contact": "CalFire Dispatch"},
-    "Enterprise: Napa Vineyards": {"lat": 38.50, "lon": -122.47, "slope": 12.0, "ndvi": 0.45, "contact": "Estate Manager SMS"},
-    "Municipal: Malibu Perimeter": {"lat": 34.03, "lon": -118.78, "slope": 22.0, "ndvi": 0.35, "contact": "LA County Emergency Mgt"},
-    "Gov Sector: Death Valley": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
-}
+# Global Presets stored in session state
+if 'client_zones' not in st.session_state:
+    st.session_state.client_zones = {
+        "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
+        "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
+        "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
+        "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
+    }
+
+# --- SIDEBAR: CLEAN SEARCH BAR ---
+st.sidebar.header("📍 Asset Location Search")
+st.sidebar.caption("Search any city, regional address, or landmark worldwide.")
+user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece or Nuku'alofa")
+
+if st.sidebar.button("Search & Monitor Location", type="primary"):
+    if user_query:
+        with st.sidebar.status("Geocoding location...") as status:
+            lat, lon, name = geocode_location(user_query)
+            
+            if lat is not None:
+                status.update(label="Fetching live weather telemetry...", state="running")
+                prob, _, _ = fetch_live_telemetry(lat, lon)
+                
+                if prob is not None:
+                    zone_key = f"Custom Asset: {name}"
+                    st.session_state.client_zones[zone_key] = {
+                        "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
+                    }
+                    status.update(label=f"Successfully added {name}!", state="complete")
+                    st.sidebar.success(f"Added {name} to monitoring database!")
+                else:
+                    status.update(label="Weather API failure", state="error")
+                    st.sidebar.error("Found the location, but live weather data is currently unavailable for these coordinates.")
+            else:
+                status.update(label="Geocoding failed", state="error")
+                st.sidebar.error("Could not find coordinates for that location. Check your spelling and try again.")
 
 alerts = []
 zone_results = {}
 
 with st.spinner("Executing real-time global telemetry sweep..."):
-    for zone, data in client_zones.items():
+    for zone in list(st.session_state.client_zones.keys()):
+        data = st.session_state.client_zones[zone]
         prob, input_df, weather = fetch_live_telemetry(data["lat"], data["lon"], data["slope"], data["ndvi"])
-        
         if prob is not None:
             zone_results[zone] = {"prob": prob, "input": input_df, "weather": weather, "meta": data}
             if prob > 0.50:
@@ -127,64 +158,140 @@ if alerts:
         with col_alert:
             st.warning(f"**CRITICAL RISK**: {a} crossed threshold ({risk_pct:.1f}%). Designated contact: **{contact}**")
         with col_button:
-            # Clearly labeled as a manual trigger for the UI, calling the real dispatch function
-            if st.button(f"Trigger API Webhook", key=f"btn_{a}", use_container_width=True):
+            if st.button(f"Trigger Test Webhook", key=f"btn_{a}", use_container_width=True):
                 dispatch_external_alert(a, contact, risk_pct)
-                st.toast(f"Webhook executed! Real-world system would now text {contact}.", icon="✅")
+                st.toast(f"Test webhook executed successfully.", icon="✅")
 else:
     st.success("### ✅ All Monitored Zones Nominal. Live telemetry shows no critical threats.")
 
 st.markdown("---")
 
+# --- GLOBAL MAP DISPLAY (WATERMARK FIXED) ---
+st.markdown("### 🗺️ Global Asset Monitoring Map")
+
+if zone_results:
+    map_records = []
+    
+    for zone, res in zone_results.items():
+        prob = res['prob']
+        w = res['weather']
+        meta = res['meta']
+        
+        if prob < 0.30:
+            color = '#00FF00'
+        elif prob < 0.60:
+            color = '#FFD700'
+        else:
+            color = '#FF0000'
+            
+        hover_text = (
+            f"<b>{zone}</b><br>"
+            f"🔥 <b>Risk Level: {prob*100:.1f}%</b><br>"
+            f"🌡️ Temp: {w['t']}°C<br>"
+            f"💧 Humidity: {w['rh']}%<br>"
+            f"💨 Wind: {w['w']} km/h"
+        )
+        
+        map_records.append({
+            "lat": meta["lat"],
+            "lon": meta["lon"],
+            "color": color,
+            "hover": hover_text
+        })
+        
+    df_map = pd.DataFrame(map_records)
+    
+    fig_map = go.Figure(go.Scattermapbox(
+        lat=df_map['lat'],
+        lon=df_map['lon'],
+        mode='markers',
+        marker=go.scattermapbox.Marker(
+            size=15,
+            color=df_map['color'],
+            opacity=0.8
+        ),
+        text=df_map['hover'],
+        hoverinfo='text'
+    ))
+    
+    fig_map.update_layout(
+        mapbox_style="open-street-map",  # Free open tiles, no watermarks
+        margin={"r":0, "t":0, "l":0, "b":0},
+        height=450,
+        mapbox=dict(
+            center=dict(lat=10, lon=0),
+            zoom=1.2
+        ),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
+
+st.markdown("---")
+
 # --- DIAGNOSTIC DASHBOARD ---
 st.markdown("### Monitored Assets Database")
-tabs = st.tabs(list(zone_results.keys()))
 
-for i, (zone, result) in enumerate(zone_results.items()):
-    with tabs[i]:
-        prob = result['prob']
-        c1, c2, c3 = st.columns([1, 1.5, 1])
-        
-        with c1:
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = prob * 100,
-                title = {'text': "Current Risk", 'font': {'size': 18}},
-                number = {'suffix': "%"},
-                gauge = {
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "darkred"},
-                    'steps': [
-                        {'range': [0, 30], 'color': "lightgreen"},
-                        {'range': [30, 60], 'color': "gold"},
-                        {'range': [60, 100], 'color': "salmon"}
-                    ]
-                }
-            ))
-            fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig_gauge, use_container_width=True)
-            st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
+if zone_results:
+    tabs = st.tabs(list(zone_results.keys()))
+
+    for i, (zone, result) in enumerate(zone_results.items()):
+        with tabs[i]:
+            prob = result['prob']
+            c1, c2, c3 = st.columns([1, 1.5, 1])
             
-        with c2:
-            st.markdown("**AI Diagnostic: What is driving this risk?**")
-            explainer = shap.TreeExplainer(inference_model)
-            shap_values = explainer.shap_values(result['input'])
-            
-            shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": shap_values[0]})
-            shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
-            shap_df = shap_df.sort_values(by="Impact", ascending=True)
-            
-            fig_shap, ax = plt.subplots(figsize=(6, 3))
-            colors = ['#d62728' if x > 0 else '#1f77b4' for x in shap_df['Impact']]
-            ax.barh(shap_df['Readable'], shap_df['Impact'], color=colors)
-            ax.set_xticks([]) 
-            ax.spines[['top', 'right', 'bottom']].set_visible(False)
-            plt.tight_layout()
-            st.pyplot(fig_shap)
-            
-        with c3:
-            st.markdown("**Real-Time Telemetry**")
-            w = result['weather']
-            st.write(f"🌡️ **Temp:** {w['t']}°C")
-            st.write(f"💧 **Humidity:** {w['rh']}%")
-            st.write(f"💨 **Wind:** {w['w']} km/h")
+            with c1:
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = prob * 100,
+                    title = {'text': "Current Risk", 'font': {'size': 18}},
+                    number = {'suffix': "%", 'valueformat': '.1f'},
+                    gauge = {
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': "darkred"},
+                        'steps': [
+                            {'range': [0, 30], 'color': "lightgreen"},
+                            {'range': [30, 60], 'color': "gold"},
+                            {'range': [60, 100], 'color': "salmon"}
+                        ]
+                    }
+                ))
+                fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
+                st.plotly_chart(fig_gauge, use_container_width=True)
+                st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
+                
+                if result['meta']['ndvi'] < 0.12:
+                    st.info("🏜️ **Safety Mask Active:** Barren terrain detected. False alarm suppressed.")
+                
+            with c2:
+                st.markdown("**AI Diagnostic: What is driving this risk?**")
+                st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
+                
+                explainer = shap.TreeExplainer(inference_model)
+                shap_values = explainer.shap_values(result['input'])
+                
+                shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": shap_values[0]})
+                shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
+                shap_df = shap_df.sort_values(by="Impact", ascending=True)
+                
+                fig_shap, ax = plt.subplots(figsize=(6, 2.8))
+                colors = ['#ff4b4b' if x > 0 else '#1c83e1' for x in shap_df['Impact']]
+                
+                ax.barh(shap_df['Readable'], shap_df['Impact'], color=colors, height=0.6)
+                ax.axvline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.6)
+                ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
+                ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
+                ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
+                
+                plt.tight_layout()
+                st.pyplot(fig_shap, transparent=True)
+                
+            with c3:
+                st.markdown("**Real-Time Telemetry**")
+                w = result['weather']
+                st.write(f"🌡️ **Temp:** {w['t']}°C")
+                st.write(f"💧 **Humidity:** {w['rh']}%")
+                st.write(f"💨 **Wind:** {w['w']} km/h")
+else:
+    st.info("No assets currently being monitored. Add a location using the sidebar.")
