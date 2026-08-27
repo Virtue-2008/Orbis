@@ -322,37 +322,59 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
+                    # Unwrap Scikit-Learn Pipeline if necessary
+                    model_to_explain = inference_model
+                    if hasattr(inference_model, 'named_steps'):
+                        model_to_explain = inference_model.named_steps[list(inference_model.named_steps.keys())[-1]]
+                        
                     try:
-                        # FIX: Proper TreeExplainer mapping so SHAP actually extracts the variance
-                        explainer = shap.TreeExplainer(inference_model)
+                        explainer = shap.TreeExplainer(model_to_explain)
                         shap_vals = explainer.shap_values(result['input'])
                         
                         if isinstance(shap_vals, list):
-                            s_vals = shap_vals[1][0] 
+                            s_vals = shap_vals[1][0] if len(shap_vals) > 1 else shap_vals[0][0]
                         elif len(np.array(shap_vals).shape) == 2:
-                            s_vals = shap_vals[0]     
+                            s_vals = shap_vals[0]
                         elif len(np.array(shap_vals).shape) == 3:
                             s_vals = shap_vals[0, :, 1]
                         else:
-                            s_vals = shap_vals
-                    except Exception as e:
-                        # Fallback empty array so the page never crashes
-                        s_vals = np.zeros(len(MODEL_FEATURES))
-                        print(f"SHAP Error: {e}")
-                    
+                            s_vals = np.array(shap_vals).flatten()
+                    except Exception as tree_err:
+                        # Baseline-perturbed fallback for general models
+                        try:
+                            synthetic_bg = pd.concat([result['input']] * 5, ignore_index=True)
+                            synthetic_bg['t'] += np.random.uniform(-5, 5, 5)
+                            synthetic_bg['rh'] += np.random.uniform(-10, 10, 5)
+                            
+                            explainer = shap.Explainer(inference_model.predict_proba, synthetic_bg)
+                            shap_exp = explainer(result['input'])
+                            
+                            if len(shap_exp.values.shape) == 3:
+                                s_vals = shap_exp.values[0, :, 1]
+                            else:
+                                s_vals = shap_exp.values[0]
+                        except Exception as final_err:
+                            st.error(f"⚠️ SHAP diagnostic error: {final_err}")
+                            s_vals = np.zeros(len(MODEL_FEATURES))
+
                     shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
                     shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
                     shap_df = shap_df.sort_values(by="Impact", ascending=True)
-                    
-                    fig_shap, ax = plt.subplots(figsize=(6, 2.8))
+
+                    fig_shap, ax = plt.subplots(figsize=(6, 3))
                     colors = ['#ff4b4b' if x > 0 else '#1c83e1' for x in shap_df['Impact']]
-                    
+
                     ax.barh(shap_df['Readable'], shap_df['Impact'], color=colors, height=0.6)
                     ax.axvline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.6)
                     ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
                     ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
                     ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
-                    
+
+                    # Dynamic auto-scaling X axis to ensure small non-zero values are clearly visible
+                    max_impact = max(abs(shap_df['Impact'].min()), abs(shap_df['Impact'].max()))
+                    if max_impact > 0:
+                        ax.set_xlim(-max_impact * 1.25, max_impact * 1.25)
+
                     plt.tight_layout()
                     st.pyplot(fig_shap, transparent=True)
                     
