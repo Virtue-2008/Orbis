@@ -139,17 +139,16 @@ st.markdown("**Automated Wildfire Threat Monitoring & Notification System**")
 st.caption(f"Last automated sweep: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC | Engine Status: {engine_status}")
 st.markdown("---")
 
-# Initialize session state tracking custom state explicitly
-if 'client_zones' not in st.session_state:
-    st.session_state.client_zones = {
-        "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
-        "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
-        "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
-        "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
-    }
+# Initialize session state for zones cleanly
+DEFAULT_ZONES = {
+    "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
+    "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
+    "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
+    "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
+}
 
-if 'custom_mode_active' not in st.session_state:
-    st.session_state.custom_mode_active = False
+if 'client_zones' not in st.session_state:
+    st.session_state.client_zones = DEFAULT_ZONES.copy()
 
 # --- SIDEBAR: CLEAN SEARCH BAR & PROPER PLACEHOLDERS ---
 st.sidebar.header("📍 Asset Location Search")
@@ -164,40 +163,36 @@ if user_query:
     else:
         st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name.")
 
-if st.sidebar.button("Search & Monitor Location", type="primary"):
-    if user_query:
-        with st.sidebar.status("Geocoding location...") as status:
-            lat, lon, name, full_display = geocode_location(user_query)
+# Button OR pressing enter handler to isolate custom location
+search_triggered = st.sidebar.button("Search & Monitor Location", type="primary")
+
+if search_triggered and user_query:
+    with st.sidebar.status("Geocoding location...") as status:
+        lat, lon, name, full_display = geocode_location(user_query)
+        
+        if lat is not None:
+            status.update(label="Fetching live weather telemetry...", state="running")
+            prob, _, _ = fetch_live_telemetry(lat, lon)
             
-            if lat is not None:
-                status.update(label="Fetching live weather telemetry...", state="running")
-                prob, _, _ = fetch_live_telemetry(lat, lon)
-                
-                if prob is not None:
-                    # Clear presets and isolate the custom target cleanly
-                    st.session_state.client_zones = {
-                        f"Custom Asset: {full_display}": {
-                            "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
-                        }
+            if prob is not None:
+                # Completely wipe out presets and only keep this custom asset
+                st.session_state.client_zones = {
+                    f"Custom Asset: {full_display}": {
+                        "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
                     }
-                    st.session_state.custom_mode_active = True
-                    status.update(label=f"Successfully loaded {full_display}!", state="complete")
-                    st.sidebar.success(f"Locked onto {full_display}!")
-                else:
-                    status.update(label="Weather API failure", state="error")
-                    st.sidebar.error("Found location, but live weather data is currently unavailable.")
+                }
+                status.update(label=f"Successfully loaded {full_display}!", state="complete")
+                st.sidebar.success(f"Locked onto {full_display} and cleared presets!")
+                st.rerun()
             else:
-                status.update(label="Geocoding failed", state="error")
-                st.sidebar.error("Could not match location. Try typing more explicitly.")
+                status.update(label="Weather API failure", state="error")
+                st.sidebar.error("Found location, but live weather data is currently unavailable.")
+        else:
+            status.update(label="Geocoding failed", state="error")
+            st.sidebar.error("Could not match location. Try typing more explicitly.")
 
 if st.sidebar.button("Reset to Default Presets"):
-    st.session_state.client_zones = {
-        "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
-        "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
-        "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
-        "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
-    }
-    st.session_state.custom_mode_active = False
+    st.session_state.client_zones = DEFAULT_ZONES.copy()
     st.rerun()
 
 alerts = []
@@ -241,13 +236,13 @@ try:
             w = res['weather']
             meta = res['meta']
             
-            # Explicit color scale mapping based directly on calculated risk probability
+            # Explicit, guaranteed color coordination matching risk levels
             if prob < 0.30:
-                color = '#00CC44'  # Low Risk (Green)
+                marker_color = '#00CC44'  # Green (Low Risk)
             elif prob < 0.60:
-                color = '#FFCC00'  # Medium Risk (Yellow/Amber)
+                marker_color = '#FFCC00'  # Yellow/Amber (Medium Risk)
             else:
-                color = '#FF3333'  # High Risk (Red)
+                marker_color = '#FF3333'  # Red (High Risk)
                 
             hover_text = (
                 f"<b>{zone}</b><br>"
@@ -260,7 +255,7 @@ try:
             map_records.append({
                 "lat": meta["lat"],
                 "lon": meta["lon"],
-                "color": color,
+                "color": marker_color,
                 "hover": hover_text
             })
             
@@ -271,9 +266,9 @@ try:
             lon=df_map['lon'],
             mode='markers',
             marker=dict(
-                size=18,
+                size=20,
                 color=df_map['color'],
-                opacity=0.9
+                opacity=0.95
             ),
             text=df_map['hover'],
             hoverinfo='text'
