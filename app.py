@@ -56,20 +56,29 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
+    """Converts a typed city/address into global Lat/Lon coordinates, ignoring case."""
     try:
-        clean_query = query_str.replace("'", " ")
-        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&limit=1"
-        headers = {'User-Agent': 'OrbisSentinel/12.1'}
+        # Lowercase and clean input to make it completely independent of capitalization
+        clean_query = query_str.strip().lower().replace("'", " ")
+        if not clean_query:
+            return None, None, None
+            
+        # OpenStreetMap Nominatim search endpoint with address details enabled
+        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=3"
+        headers = {'User-Agent': 'OrbisSentinel-ResearchApp-v2.5'}
         resp = requests.get(url, headers=headers, timeout=5).json()
+        
         if resp:
+            # Grab the top match
             lat = float(resp[0]["lat"])
             lon = float(resp[0]["lon"])
             name = resp[0]["display_name"].split(",")[0]
-            return lat, lon, name
+            full_display = resp[0]["display_name"]
+            return lat, lon, name, full_display
     except Exception as e:
         print(f"Geocoding Error: {e}")
         pass
-    return None, None, None
+    return None, None, None, None
 
 def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     try:
@@ -138,14 +147,25 @@ if 'client_zones' not in st.session_state:
         "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
     }
 
+# --- SIDEBAR: CLEAN SEARCH BAR & LIVE COORDINATES DISPLAY ---
 st.sidebar.header("📍 Asset Location Search")
-st.sidebar.caption("Search any city, regional address, or landmark worldwide.")
-user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece or Nuku'alofa")
+st.sidebar.caption("Search is case-insensitive and handles slight variations.")
+user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. athens or valparaiso")
+
+# Container under the search bar to show resolved coordinates or suggestions
+coord_placeholder = st.sidebar.empty()
+
+if user_query:
+    lat, lon, name, full_display = geocode_location(user_query)
+    if lat is not None:
+        coord_placeholder.info(f"🎯 **Resolved Location:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
+    else:
+        coord_placeholder.warning("⚠️ Did you mean something else? Check spelling or add country name.")
 
 if st.sidebar.button("Search & Monitor Location", type="primary"):
     if user_query:
         with st.sidebar.status("Geocoding location...") as status:
-            lat, lon, name = geocode_location(user_query)
+            lat, lon, name, full_display = geocode_location(user_query)
             
             if lat is not None:
                 status.update(label="Fetching live weather telemetry...", state="running")
@@ -160,10 +180,10 @@ if st.sidebar.button("Search & Monitor Location", type="primary"):
                     st.sidebar.success(f"Added {name} to monitoring database!")
                 else:
                     status.update(label="Weather API failure", state="error")
-                    st.sidebar.error("Found the location, but live weather data is currently unavailable for these coordinates.")
+                    st.sidebar.error("Found location, but live weather data is currently unavailable.")
             else:
                 status.update(label="Geocoding failed", state="error")
-                st.sidebar.error("Could not find coordinates for that location. Check your spelling and try again.")
+                st.sidebar.error("Could not match location. Try typing more explicitly (e.g., 'Athens, Greece').")
 
 alerts = []
 zone_results = {}
