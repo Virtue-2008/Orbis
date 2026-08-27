@@ -79,14 +79,11 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     input_df = pd.DataFrame([[t, rh, w, static_ndvi, static_slope, vpd, emc]], columns=MODEL_FEATURES)
     
     try:
-        # Try standard predict_proba first
         raw_prob = float(inference_model.predict_proba(input_df)[0][1])
     except Exception:
         try:
-            # Fallback: drop column names to force raw matrix evaluation through the wrapper
             raw_prob = float(inference_model.predict_proba(input_df.values)[0][1])
         except Exception:
-            # Ultimate fallback: use uniform dummy probability if model signature is locked
             raw_prob = 0.15
 
     # Desert Fuel Safety Mask
@@ -177,7 +174,7 @@ else:
 st.markdown("---")
 
 try:
-    # --- GLOBAL MAP DISPLAY (WATERMARK FIXED) ---
+    # --- GLOBAL MAP DISPLAY ---
     st.markdown("### 🗺️ Global Asset Monitoring Map")
 
     if zone_results:
@@ -212,11 +209,11 @@ try:
             
         df_map = pd.DataFrame(map_records)
         
-        fig_map = go.Figure(go.Scattermapbox(
+        fig_map = go.Figure(go.Scattermap(
             lat=df_map['lat'],
             lon=df_map['lon'],
             mode='markers',
-            marker=go.scattermapbox.Marker(
+            marker=dict(
                 size=15,
                 color=df_map['color'],
                 opacity=0.8
@@ -226,10 +223,10 @@ try:
         ))
         
         fig_map.update_layout(
-            mapbox_style="open-street-map",  # Free open tiles, no watermarks
+            map_style="open-street-map",
             margin={"r":0, "t":0, "l":0, "b":0},
             height=450,
-            mapbox=dict(
+            map=dict(
                 center=dict(lat=10, lon=0),
                 zoom=1.2
             ),
