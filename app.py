@@ -56,23 +56,24 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates using a browser-like User-Agent to avoid blocks."""
+    """Converts a typed city/address into global Lat/Lon coordinates safely."""
     try:
-        clean_query = query_str.strip().lower().replace("'", " ")
+        clean_query = query_str.strip().replace("'", " ")
         if not clean_query:
             return None, None, None, None
             
         url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=3"
-        # Using a standard browser user-agent avoids strict python-requests bot blocking/403s on Nominatim
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        resp = requests.get(url, headers=headers, timeout=5).json()
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrbisSentinel/3.0'}
+        response = requests.get(url, headers=headers, timeout=6)
         
-        if resp and isinstance(resp, list) and len(resp) > 0:
-            lat = float(resp[0]["lat"])
-            lon = float(resp[0]["lon"])
-            name = resp[0]["display_name"].split(",")[0]
-            full_display = resp[0]["display_name"]
-            return lat, lon, name, full_display
+        if response.status_code == 200:
+            resp = response.json()
+            if resp and isinstance(resp, list) and len(resp) > 0:
+                lat = float(resp[0]["lat"])
+                lon = float(resp[0]["lon"])
+                name = resp[0]["display_name"].split(",")[0]
+                full_display = resp[0]["display_name"]
+                return lat, lon, name, full_display
     except Exception as e:
         print(f"Geocoding Error: {e}")
         pass
@@ -145,18 +146,18 @@ if 'client_zones' not in st.session_state:
         "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
     }
 
-# --- SIDEBAR: CLEAN SEARCH BAR & LIVE COORDINATES DISPLAY ---
+# --- SIDEBAR: CLEAN SEARCH BAR & PROPER PLACEHOLDERS ---
 st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
-user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. athens or valparaiso")
+user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
 
-# Instant live coordinate checking as you type
+# Instant feedback container directly underneath
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
     if lat is not None:
         st.sidebar.success(f"🎯 **Found:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
     else:
-        st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name (e.g. Athens, Greece).")
+        st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name.")
 
 if st.sidebar.button("Search & Monitor Location", type="primary"):
     if user_query:
