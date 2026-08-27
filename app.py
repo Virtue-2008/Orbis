@@ -139,6 +139,7 @@ st.markdown("**Automated Wildfire Threat Monitoring & Notification System**")
 st.caption(f"Last automated sweep: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC | Engine Status: {engine_status}")
 st.markdown("---")
 
+# Initialize session state tracking custom state explicitly
 if 'client_zones' not in st.session_state:
     st.session_state.client_zones = {
         "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
@@ -146,6 +147,9 @@ if 'client_zones' not in st.session_state:
         "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
         "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
     }
+
+if 'custom_mode_active' not in st.session_state:
+    st.session_state.custom_mode_active = False
 
 # --- SIDEBAR: CLEAN SEARCH BAR & PROPER PLACEHOLDERS ---
 st.sidebar.header("📍 Asset Location Search")
@@ -170,18 +174,31 @@ if st.sidebar.button("Search & Monitor Location", type="primary"):
                 prob, _, _ = fetch_live_telemetry(lat, lon)
                 
                 if prob is not None:
-                    zone_key = f"Custom Asset: {name}"
-                    st.session_state.client_zones[zone_key] = {
-                        "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
+                    # Clear presets and isolate the custom target cleanly
+                    st.session_state.client_zones = {
+                        f"Custom Asset: {full_display}": {
+                            "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
+                        }
                     }
-                    status.update(label=f"Successfully added {name}!", state="complete")
-                    st.sidebar.success(f"Added {name} to monitoring database!")
+                    st.session_state.custom_mode_active = True
+                    status.update(label=f"Successfully loaded {full_display}!", state="complete")
+                    st.sidebar.success(f"Locked onto {full_display}!")
                 else:
                     status.update(label="Weather API failure", state="error")
                     st.sidebar.error("Found location, but live weather data is currently unavailable.")
             else:
                 status.update(label="Geocoding failed", state="error")
                 st.sidebar.error("Could not match location. Try typing more explicitly.")
+
+if st.sidebar.button("Reset to Default Presets"):
+    st.session_state.client_zones = {
+        "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
+        "Enterprise: Hunter Valley (Australia)": {"lat": -32.65, "lon": 151.35, "slope": 10.0, "ndvi": 0.40, "contact": "RFS Operations"},
+        "Municipal: Valparaíso (Chile)": {"lat": -33.04, "lon": -71.61, "slope": 28.0, "ndvi": 0.35, "contact": "CONAF Chile"},
+        "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
+    }
+    st.session_state.custom_mode_active = False
+    st.rerun()
 
 alerts = []
 zone_results = {}
@@ -224,12 +241,13 @@ try:
             w = res['weather']
             meta = res['meta']
             
+            # Explicit color scale mapping based directly on calculated risk probability
             if prob < 0.30:
-                color = '#00FF00'
+                color = '#00CC44'  # Low Risk (Green)
             elif prob < 0.60:
-                color = '#FFD700'
+                color = '#FFCC00'  # Medium Risk (Yellow/Amber)
             else:
-                color = '#FF0000'
+                color = '#FF3333'  # High Risk (Red)
                 
             hover_text = (
                 f"<b>{zone}</b><br>"
@@ -253,9 +271,9 @@ try:
             lon=df_map['lon'],
             mode='markers',
             marker=dict(
-                size=15,
+                size=18,
                 color=df_map['color'],
-                opacity=0.8
+                opacity=0.9
             ),
             text=df_map['hover'],
             hoverinfo='text'
@@ -266,8 +284,8 @@ try:
             margin={"r":0, "t":0, "l":0, "b":0},
             height=450,
             map=dict(
-                center=dict(lat=10, lon=0),
-                zoom=1.2
+                center=dict(lat=list(zone_results.values())[0]['meta']['lat'], lon=list(zone_results.values())[0]['meta']['lon']) if len(zone_results) == 1 else dict(lat=10, lon=0),
+                zoom=4 if len(zone_results) == 1 else 1.2
             ),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)'
