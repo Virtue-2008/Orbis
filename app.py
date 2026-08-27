@@ -53,17 +53,23 @@ else:
     st.stop()
 
 def get_base_estimator(model):
-    """Unwraps CalibratedClassifierCV or Scikit-Learn Pipelines to expose raw XGBoost trees for SHAP."""
-    if hasattr(model, "calibrated_classifiers_"):
-        return model.calibrated_classifiers_[0].estimator
-    if hasattr(model, "estimator"):
-        return model.estimator
-    if hasattr(model, "named_steps"):
-        return model.named_steps[list(model.named_steps.keys())[-1]]
-    return model
+    """Recursively unwraps FrozenEstimator, CalibratedClassifierCV, and Pipelines to expose XGBoost for SHAP."""
+    curr = model
+    for _ in range(10):
+        if hasattr(curr, "calibrated_classifiers_") and len(curr.calibrated_classifiers_) > 0:
+            curr = curr.calibrated_classifiers_[0]
+        elif hasattr(curr, "estimator"):
+            curr = curr.estimator
+        elif hasattr(curr, "named_steps"):
+            curr = curr.named_steps[list(curr.named_steps.keys())[-1]]
+        elif hasattr(curr, "_final_estimator"):
+            curr = curr._final_estimator
+        else:
+            break
+    return curr
 
 def build_features(t, rh, w, slope=15.0, ndvi=0.40):
-    """Unified 18-feature engineering engine for both prediction and SHAP attribution."""
+    """Unified 18-feature engineering engine."""
     vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
     aspect_sin = 0.0
@@ -130,7 +136,6 @@ def fetch_live_telemetry(lat, lon, slope=15.0, ndvi=0.40):
     except Exception:
         raw_prob = float(inference_model.predict_proba(input_df.values)[0][1])
 
-    # Apply Barren Terrain Safety Mask
     final_prob = 0.001 if ndvi < 0.12 else raw_prob
 
     return final_prob, raw_prob, input_df, {"t": t, "rh": rh, "w": w, "error": None}
@@ -156,15 +161,10 @@ DEFAULT_ZONES = {
 if 'client_zones' not in st.session_state:
     st.session_state.client_zones = DEFAULT_ZONES.copy()
 
-# --- SIDEBAR SEARCH ---
+# --- SIDEBAR SEARCH (CLEAN LAYOUT) ---
 st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
-
-# Surface Override Controls for Search
-st.sidebar.markdown("**Surface Feature Tuning**")
-custom_slope = st.sidebar.slider("Terrain Slope (°)", 0.0, 45.0, 15.0)
-custom_ndvi = st.sidebar.slider("Vegetation Index (NDVI)", 0.0, 1.0, 0.40)
 
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
@@ -181,12 +181,12 @@ if search_triggered and user_query:
         
         if lat is not None:
             status.update(label="Fetching live weather telemetry...", state="running")
-            prob, _, _, _ = fetch_live_telemetry(lat, lon, custom_slope, custom_ndvi)
+            prob, _, _, _ = fetch_live_telemetry(lat, lon, slope=15.0, ndvi=0.40)
             
             if prob is not None:
                 st.session_state.client_zones = {
                     f"Custom Asset: {full_display}": {
-                        "lat": lat, "lon": lon, "slope": custom_slope, "ndvi": custom_ndvi, "contact": "Property Owner"
+                        "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
                     }
                 }
                 status.update(label=f"Successfully loaded {full_display}!", state="complete")
@@ -333,7 +333,6 @@ try:
                     fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
                     st.plotly_chart(fig_gauge, use_container_width=True, key=f"gauge_{i}")
                     
-                    # Diagnostics Debug Output
                     st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
                     st.caption(f"🔍 **Raw Model Output:** `{raw_prob*100:.2f}%` | **Displayed:** `{prob*100:.2f}%`")
                     
@@ -344,7 +343,7 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    # Target the raw underlying XGBoost tree model directly for SHAP
+                    # Target the underlying base model recursively
                     base_model = get_base_estimator(inference_model)
                     
                     try:
@@ -360,8 +359,16 @@ try:
                         else:
                             s_vals = np.array(shap_vals).flatten()
                     except Exception as tree_err:
-                        st.error(f"⚠️ SHAP diagnostic unwrap exception: {tree_err}")
-                        s_vals = np.zeros(len(MODEL_FEATURES))
+                        # Fallback for complex wrapper structures
+                        try:
+                            explainer = shap.Explainer(base_model)
+                            shap_exp = explainer(result['input'])
+                            s_vals = shap_exp.values[0]
+                            if len(s_vals.shape) > 1:
+                                s_vals = s_vals[:, 1]
+                        except Exception as fall_err:
+                            st.error(f"⚠️ SHAP diagnostic unwrap exception: {fall_err}")
+                            s_vals = np.zeros(len(MODEL_FEATURES))
 
                     shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
                     shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
@@ -376,7 +383,7 @@ try:
                     ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
                     ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
 
-                    # Dynamic axis scaling to amplify feature contribution bars
+                    # Dynamic axis scaling to amplify small non-zero contributions
                     max_impact = max(abs(shap_df['Impact'].min()), abs(shap_df['Impact'].max()))
                     if max_impact > 0:
                         ax.set_xlim(-max_impact * 1.3, max_impact * 1.3)
