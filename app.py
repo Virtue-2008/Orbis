@@ -56,13 +56,13 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates safely."""
+    """Converts a typed city/address into global Lat/Lon coordinates safely with fallback handling."""
     try:
         clean_query = query_str.strip().replace("'", " ")
         if not clean_query:
             return None, None, None, None
             
-        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=3"
+        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=1"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrbisSentinel/3.0'}
         response = requests.get(url, headers=headers, timeout=6)
         
@@ -151,11 +151,11 @@ st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
 
-# Instant feedback container directly underneath
+# Instant live feedback container showing coordinates immediately as you type
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
     if lat is not None:
-        st.sidebar.success(f"🎯 **Found:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
+        st.sidebar.success(f"🎯 **Found:** {name}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
     else:
         st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name.")
 
@@ -291,7 +291,7 @@ try:
                         mode = "gauge+number",
                         value = prob * 100,
                         title = {'text': "Current Risk", 'font': {'size': 18}},
-                        number = {'suffix': "%", 'valueformat': '.1f'},
+                        number = {'suffix": "%", 'valueformat': '.1f'},
                         gauge = {
                             'axis': {'range': [0, 100]},
                             'bar': {'color': "darkred"},
