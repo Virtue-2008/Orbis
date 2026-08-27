@@ -10,10 +10,8 @@ from datetime import datetime
 import joblib
 import os
 
-# Set page config
 st.set_page_config(page_title="ORBIS Sentinel | Research Demo", layout="wide")
 
-# --- RESEARCH DISCLAIMER BANNER ---
 st.warning(
     "⚠️ **ORBIS Sentinel — Research Demonstration**\n\n"
     "This is an experimental wildfire ignition-risk model utilizing meteorological and "
@@ -22,7 +20,7 @@ st.warning(
 )
 
 # =====================================================================
-# PART 1: THE SCIENTIFIC CORE (Single Source of Truth)
+# PART 1: THE SCIENTIFIC CORE
 # =====================================================================
 MODEL_FILE = "orbis_production_model.joblib"
 
@@ -52,20 +50,45 @@ else:
     st.error("❌ Critical Error: Production model artifact (`orbis_production_model.joblib`) not found. Engine offline.")
     st.stop()
 
-def get_base_estimator(model):
-    """Recursively unwraps FrozenEstimator, CalibratedClassifierCV, and Pipelines to expose XGBoost for SHAP."""
+def extract_tree_model(model):
+    """Recursively drills through FrozenEstimator, CalibratedClassifierCV, and Pipeline wrappers to extract XGBoost."""
     curr = model
-    for _ in range(10):
+    visited = set()
+    
+    while curr is not None and id(curr) not in visited:
+        visited.add(id(curr))
+        
+        if isinstance(curr, (xgb.XGBClassifier, xgb.XGBRegressor, xgb.Booster)):
+            return curr
+        if hasattr(curr, "get_booster"):
+            return curr
+            
         if hasattr(curr, "calibrated_classifiers_") and len(curr.calibrated_classifiers_) > 0:
             curr = curr.calibrated_classifiers_[0]
-        elif hasattr(curr, "estimator"):
-            curr = curr.estimator
-        elif hasattr(curr, "named_steps"):
-            curr = curr.named_steps[list(curr.named_steps.keys())[-1]]
-        elif hasattr(curr, "_final_estimator"):
-            curr = curr._final_estimator
-        else:
-            break
+            continue
+            
+        unpacked = False
+        for attr in ["estimator", "base_estimator", "_estimator", "estimator_"]:
+            if hasattr(curr, attr):
+                val = getattr(curr, attr)
+                if val is not None and val != curr:
+                    curr = val
+                    unpacked = True
+                    break
+        if unpacked:
+            continue
+            
+        if hasattr(curr, "named_steps"):
+            steps = list(curr.named_steps.values())
+            if steps:
+                curr = steps[-1]
+                continue
+        if hasattr(curr, "steps") and len(curr.steps) > 0:
+            curr = curr.steps[-1][1]
+            continue
+            
+        break
+        
     return curr
 
 def build_features(t, rh, w, slope=15.0, ndvi=0.40):
@@ -93,7 +116,7 @@ def build_features(t, rh, w, slope=15.0, ndvi=0.40):
     return pd.DataFrame([row], columns=MODEL_FEATURES)
 
 # =====================================================================
-# PART 2: GLOBAL TELEMETRY PIPELINE
+# PART 2: TELEMETRY PIPELINE
 # =====================================================================
 def geocode_location(query_str):
     try:
@@ -161,7 +184,6 @@ DEFAULT_ZONES = {
 if 'client_zones' not in st.session_state:
     st.session_state.client_zones = DEFAULT_ZONES.copy()
 
-# --- SIDEBAR SEARCH (CLEAN LAYOUT) ---
 st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
@@ -343,31 +365,38 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    # Target the underlying base model recursively
-                    base_model = get_base_estimator(inference_model)
+                    base_model = extract_tree_model(inference_model)
                     
                     try:
-                        explainer = shap.TreeExplainer(base_model)
-                        shap_vals = explainer.shap_values(result['input'])
-                        
-                        if isinstance(shap_vals, list):
-                            s_vals = shap_vals[1][0] if len(shap_vals) > 1 else shap_vals[0][0]
-                        elif len(np.array(shap_vals).shape) == 2:
-                            s_vals = shap_vals[0]
-                        elif len(np.array(shap_vals).shape) == 3:
-                            s_vals = shap_vals[0, :, 1]
+                        # Target raw booster directly if available to bypass sklearn wrappers
+                        if hasattr(base_model, "get_booster"):
+                            target_estimator = base_model.get_booster()
                         else:
-                            s_vals = np.array(shap_vals).flatten()
+                            target_estimator = base_model
+
+                        explainer = shap.TreeExplainer(target_estimator)
+                        raw_shap = explainer.shap_values(result['input'])
+                        
+                        if isinstance(raw_shap, list):
+                            s_vals = raw_shap[1][0] if len(raw_shap) > 1 else raw_shap[0][0]
+                        elif isinstance(raw_shap, np.ndarray):
+                            if raw_shap.ndim == 3:
+                                s_vals = raw_shap[0, :, 1]
+                            elif raw_shap.ndim == 2:
+                                s_vals = raw_shap[0]
+                            else:
+                                s_vals = raw_shap.flatten()
+                        else:
+                            s_vals = np.array(raw_shap).flatten()
                     except Exception as tree_err:
-                        # Fallback for complex wrapper structures
                         try:
                             explainer = shap.Explainer(base_model)
-                            shap_exp = explainer(result['input'])
-                            s_vals = shap_exp.values[0]
-                            if len(s_vals.shape) > 1:
+                            exp_res = explainer(result['input'])
+                            s_vals = exp_res.values[0]
+                            if s_vals.ndim > 1:
                                 s_vals = s_vals[:, 1]
                         except Exception as fall_err:
-                            st.error(f"⚠️ SHAP diagnostic unwrap exception: {fall_err}")
+                            st.error(f"⚠️ SHAP diagnostic extraction error: {fall_err}")
                             s_vals = np.zeros(len(MODEL_FEATURES))
 
                     shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
@@ -383,10 +412,10 @@ try:
                     ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
                     ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
 
-                    # Dynamic axis scaling to amplify small non-zero contributions
+                    # Scale x-axis dynamically so non-zero contributions stand out
                     max_impact = max(abs(shap_df['Impact'].min()), abs(shap_df['Impact'].max()))
                     if max_impact > 0:
-                        ax.set_xlim(-max_impact * 1.3, max_impact * 1.3)
+                        ax.set_xlim(-max_impact * 1.2, max_impact * 1.2)
 
                     plt.tight_layout()
                     st.pyplot(fig_shap, transparent=True)
