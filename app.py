@@ -56,7 +56,7 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates using Open-Meteo's reliable geocoding API."""
+    """Converts a typed city/address into global Lat/Lon coordinates using Open-Meteo."""
     try:
         clean_query = query_str.strip()
         if not clean_query:
@@ -233,11 +233,11 @@ try:
             meta = res['meta']
             
             if prob < 0.30:
-                marker_color = '#00CC44'  # Green
+                marker_color = '#00CC44'  
             elif prob < 0.60:
-                marker_color = '#FFCC00'  # Yellow/Amber
+                marker_color = '#FFCC00'  
             else:
-                marker_color = '#FF3333'  # Red
+                marker_color = '#FF3333'  
                 
             hover_text = (
                 f"<b>{zone}</b><br>"
@@ -322,13 +322,23 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    explainer = shap.Explainer(inference_model.predict_proba, result['input'])
-                    shap_explanation = explainer(result['input'])
-                    
-                    if len(shap_explanation.values.shape) == 3:
-                        s_vals = shap_explanation.values[0, :, 1]
-                    else:
-                        s_vals = shap_explanation.values[0]
+                    try:
+                        # FIX: Proper TreeExplainer mapping so SHAP actually extracts the variance
+                        explainer = shap.TreeExplainer(inference_model)
+                        shap_vals = explainer.shap_values(result['input'])
+                        
+                        if isinstance(shap_vals, list):
+                            s_vals = shap_vals[1][0] 
+                        elif len(np.array(shap_vals).shape) == 2:
+                            s_vals = shap_vals[0]     
+                        elif len(np.array(shap_vals).shape) == 3:
+                            s_vals = shap_vals[0, :, 1]
+                        else:
+                            s_vals = shap_vals
+                    except Exception as e:
+                        # Fallback empty array so the page never crashes
+                        s_vals = np.zeros(len(MODEL_FEATURES))
+                        print(f"SHAP Error: {e}")
                     
                     shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
                     shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
