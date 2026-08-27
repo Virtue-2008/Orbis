@@ -276,10 +276,28 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    explainer = shap.TreeExplainer(inference_model)
+                    # Extract the underlying base estimator from CalibratedClassifierCV for SHAP
+                    base_estimator = getattr(inference_model, "estimator", inference_model)
+                    if hasattr(base_estimator, "named_steps"):
+                        # If it's a pipeline, pull the classifier step
+                        booster_core = base_estimator[-1]
+                    elif hasattr(inference_model, "calibrated_classifiers_"):
+                        booster_core = inference_model.calibrated_classifiers_[0].estimator
+                    else:
+                        booster_core = base_estimator
+                        
+                    explainer = shap.TreeExplainer(booster_core)
                     shap_values = explainer.shap_values(result['input'])
                     
-                    shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": shap_values[0]})
+                    # Handle multi-class vs binary output shapes for SHAP values
+                    if isinstance(shap_values, list):
+                        s_vals = shap_values[1][0] if len(shap_values) > 1 else shap_values[0][0]
+                    elif len(shap_values.shape) == 3:
+                        s_vals = shap_values[0, :, 1]
+                    else:
+                        s_vals = shap_values[0]
+                    
+                    shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
                     shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
                     shap_df = shap_df.sort_values(by="Impact", ascending=True)
                     
