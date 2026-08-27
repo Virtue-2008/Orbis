@@ -26,7 +26,6 @@ st.warning(
 # =====================================================================
 MODEL_FILE = "orbis_production_model.joblib"
 
-# The exact 18 features the production joblib artifact was trained on
 MODEL_FEATURES = [
     't', 'rh', 'w', 'slope', 'aspect_sin', 'aspect_cos', 'ndvi', 
     'w_channeled', 'emc', 'vpd', 'hdw', 'ffwi', 'topo_drying', 
@@ -34,7 +33,6 @@ MODEL_FEATURES = [
     'fuel_moisture_deficit', 'wind_vpd'
 ]
 
-# Load the production model directly
 if os.path.exists(MODEL_FILE):
     inference_model = joblib.load(MODEL_FILE)
     engine_status = "ONLINE (Calibrated Core)"
@@ -58,7 +56,6 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates."""
     try:
         clean_query = query_str.replace("'", " ")
         url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&limit=1"
@@ -75,7 +72,6 @@ def geocode_location(query_str):
     return None, None, None
 
 def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
-    """Fetches global real-time weather via Open-Meteo API and calculates all 18 features."""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         resp = requests.get(url, timeout=5).json()["current"]
@@ -85,7 +81,6 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
     except Exception as e:
         return None, None, {"error": str(e)}
 
-    # Derived Physics & Extended Interaction Features matching training schema
     vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
     emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
     aspect_sin = 0.0
@@ -117,7 +112,6 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
         except Exception:
             raw_prob = 0.15
 
-    # Desert Fuel Safety Mask
     if static_ndvi < 0.12:
         prob = 0.001
     else:
@@ -136,7 +130,6 @@ st.markdown("**Automated Wildfire Threat Monitoring & Notification System**")
 st.caption(f"Last automated sweep: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC | Engine Status: {engine_status}")
 st.markdown("---")
 
-# Global Presets stored in session state
 if 'client_zones' not in st.session_state:
     st.session_state.client_zones = {
         "Gov. Sector: Peloponnese (Greece)": {"lat": 37.51, "lon": 22.37, "slope": 20.0, "ndvi": 0.50, "contact": "Hellenic Fire Service"},
@@ -145,7 +138,6 @@ if 'client_zones' not in st.session_state:
         "Gov Sector: Death Valley (USA)": {"lat": 36.45, "lon": -116.86, "slope": 2.0, "ndvi": 0.05, "contact": "Park Rangers"}
     }
 
-# --- SIDEBAR: CLEAN SEARCH BAR ---
 st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search any city, regional address, or landmark worldwide.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece or Nuku'alofa")
@@ -185,7 +177,6 @@ with st.spinner("Executing real-time global telemetry sweep..."):
             if prob > 0.50:
                 alerts.append(zone)
 
-# --- NOTIFICATION CENTER ---
 if alerts:
     st.error(f"### 🚨 {len(alerts)} ACTIVE ALERTS DETECTED")
     for a in alerts:
@@ -205,7 +196,6 @@ else:
 st.markdown("---")
 
 try:
-    # --- GLOBAL MAP DISPLAY ---
     st.markdown("### 🗺️ Global Asset Monitoring Map")
 
     if zone_results:
@@ -265,11 +255,10 @@ try:
             plot_bgcolor='rgba(0,0,0,0)'
         )
         
-        st.plotly_chart(fig_map, use_container_width=True, config={'scrollZoom': True})
+        st.plotly_chart(fig_map, use_container_width=True, key="global_asset_map", config={'scrollZoom': True})
 
     st.markdown("---")
 
-    # --- DIAGNOSTIC DASHBOARD ---
     st.markdown("### Monitored Assets Database")
 
     if zone_results:
@@ -297,7 +286,7 @@ try:
                         }
                     ))
                     fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
-                    st.plotly_chart(fig_gauge, use_container_width=True)
+                    st.plotly_chart(fig_gauge, use_container_width=True, key=f"gauge_{i}")
                     st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
                     
                     if result['meta']['ndvi'] < 0.12:
@@ -307,7 +296,6 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    # Safe model-agnostic explainer matching the 18-feature schema
                     explainer = shap.Explainer(inference_model.predict_proba, result['input'])
                     shap_explanation = explainer(result['input'])
                     
