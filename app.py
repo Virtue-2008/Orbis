@@ -22,7 +22,7 @@ st.warning(
 )
 
 # =====================================================================
-# PART 1: THE SCIENTIFIC CORE (The "Brain")
+# PART 1: THE SCIENTIFIC CORE (Single Source of Truth)
 # =====================================================================
 MODEL_FILE = "orbis_production_model.joblib"
 
@@ -32,13 +32,6 @@ MODEL_FEATURES = [
     'fuel_dryness', 'atmo_combustion_index', 'rh_vpd_ratio', 
     'fuel_moisture_deficit', 'wind_vpd'
 ]
-
-if os.path.exists(MODEL_FILE):
-    inference_model = joblib.load(MODEL_FILE)
-    engine_status = "ONLINE (Calibrated Core)"
-else:
-    st.error("❌ Critical Error: Production model artifact (`orbis_production_model.joblib`) not found. Engine offline.")
-    st.stop()
 
 feature_names_map = {
     't': 'Temperature', 'rh': 'Humidity', 'w': 'Wind Speed', 
@@ -52,11 +45,51 @@ feature_names_map = {
     'wind_vpd': 'Wind-VPD Interaction'
 }
 
+if os.path.exists(MODEL_FILE):
+    inference_model = joblib.load(MODEL_FILE)
+    engine_status = "ONLINE (Calibrated Core)"
+else:
+    st.error("❌ Critical Error: Production model artifact (`orbis_production_model.joblib`) not found. Engine offline.")
+    st.stop()
+
+def get_base_estimator(model):
+    """Unwraps CalibratedClassifierCV or Scikit-Learn Pipelines to expose raw XGBoost trees for SHAP."""
+    if hasattr(model, "calibrated_classifiers_"):
+        return model.calibrated_classifiers_[0].estimator
+    if hasattr(model, "estimator"):
+        return model.estimator
+    if hasattr(model, "named_steps"):
+        return model.named_steps[list(model.named_steps.keys())[-1]]
+    return model
+
+def build_features(t, rh, w, slope=15.0, ndvi=0.40):
+    """Unified 18-feature engineering engine for both prediction and SHAP attribution."""
+    vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
+    emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
+    aspect_sin = 0.0
+    aspect_cos = 1.0
+    w_channeled = w * np.cos(np.radians(slope))
+    hdw = w * vpd
+    ffwi = (w * t) / (rh + 1.0)
+    topo_drying = slope * vpd
+    fuel_dryness = 100.0 / (emc + 1.0)
+    atmo_combustion_index = t * vpd / (rh + 1.0)
+    rh_vpd_ratio = rh / (vpd + 0.01)
+    fuel_moisture_deficit = 30.0 - emc
+    wind_vpd = w * vpd
+
+    row = [
+        t, rh, w, slope, aspect_sin, aspect_cos, ndvi, 
+        w_channeled, emc, vpd, hdw, ffwi, topo_drying, 
+        fuel_dryness, atmo_combustion_index, rh_vpd_ratio, 
+        fuel_moisture_deficit, wind_vpd
+    ]
+    return pd.DataFrame([row], columns=MODEL_FEATURES)
+
 # =====================================================================
-# PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
+# PART 2: GLOBAL TELEMETRY PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates using Open-Meteo."""
     try:
         clean_query = query_str.strip()
         if not clean_query:
@@ -80,7 +113,7 @@ def geocode_location(query_str):
         pass
     return None, None, None, None
 
-def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
+def fetch_live_telemetry(lat, lon, slope=15.0, ndvi=0.40):
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
         resp = requests.get(url, timeout=5).json()["current"]
@@ -88,45 +121,19 @@ def fetch_live_telemetry(lat, lon, static_slope=15.0, static_ndvi=0.40):
         rh = resp["relative_humidity_2m"]
         w = resp["wind_speed_10m"]
     except Exception as e:
-        return None, None, {"error": str(e)}
+        return None, None, None, {"error": str(e)}
 
-    vpd = (0.61078 * np.exp((17.27 * t) / (t + 237.3)) * (1 - (rh / 100)))
-    emc = (21.06 - (0.48 * rh) - (0.00035 * rh * t))
-    aspect_sin = 0.0
-    aspect_cos = 1.0
-    w_channeled = w * np.cos(np.radians(static_slope))
-    hdw = w * vpd
-    ffwi = (w * t) / (rh + 1.0)
-    topo_drying = static_slope * vpd
-    fuel_dryness = 100.0 / (emc + 1.0)
-    atmo_combustion_index = t * vpd / (rh + 1.0)
-    rh_vpd_ratio = rh / (vpd + 0.01)
-    fuel_moisture_deficit = 30.0 - emc
-    wind_vpd = w * vpd
-
-    row_data = [[
-        t, rh, w, static_slope, aspect_sin, aspect_cos, static_ndvi,
-        w_channeled, emc, vpd, hdw, ffwi, topo_drying,
-        fuel_dryness, atmo_combustion_index, rh_vpd_ratio,
-        fuel_moisture_deficit, wind_vpd
-    ]]
-    
-    input_df = pd.DataFrame(row_data, columns=MODEL_FEATURES)
+    input_df = build_features(t, rh, w, slope, ndvi)
     
     try:
         raw_prob = float(inference_model.predict_proba(input_df)[0][1])
     except Exception:
-        try:
-            raw_prob = float(inference_model.predict_proba(input_df.values)[0][1])
-        except Exception:
-            raw_prob = 0.15
+        raw_prob = float(inference_model.predict_proba(input_df.values)[0][1])
 
-    if static_ndvi < 0.12:
-        prob = 0.001
-    else:
-        prob = raw_prob
-    
-    return prob, input_df, {"t": t, "rh": rh, "w": w, "error": None}
+    # Apply Barren Terrain Safety Mask
+    final_prob = 0.001 if ndvi < 0.12 else raw_prob
+
+    return final_prob, raw_prob, input_df, {"t": t, "rh": rh, "w": w, "error": None}
 
 def dispatch_external_alert(zone, contact, risk_pct):
     return True
@@ -149,10 +156,15 @@ DEFAULT_ZONES = {
 if 'client_zones' not in st.session_state:
     st.session_state.client_zones = DEFAULT_ZONES.copy()
 
-# --- SIDEBAR: CLEAN SEARCH BAR & PROPER PLACEHOLDERS ---
+# --- SIDEBAR SEARCH ---
 st.sidebar.header("📍 Asset Location Search")
 st.sidebar.caption("Search is case-insensitive and handles typos/variations.")
 user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athens, Greece")
+
+# Surface Override Controls for Search
+st.sidebar.markdown("**Surface Feature Tuning**")
+custom_slope = st.sidebar.slider("Terrain Slope (°)", 0.0, 45.0, 15.0)
+custom_ndvi = st.sidebar.slider("Vegetation Index (NDVI)", 0.0, 1.0, 0.40)
 
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
@@ -169,12 +181,12 @@ if search_triggered and user_query:
         
         if lat is not None:
             status.update(label="Fetching live weather telemetry...", state="running")
-            prob, _, _ = fetch_live_telemetry(lat, lon)
+            prob, _, _, _ = fetch_live_telemetry(lat, lon, custom_slope, custom_ndvi)
             
             if prob is not None:
                 st.session_state.client_zones = {
                     f"Custom Asset: {full_display}": {
-                        "lat": lat, "lon": lon, "slope": 15.0, "ndvi": 0.40, "contact": "Property Owner"
+                        "lat": lat, "lon": lon, "slope": custom_slope, "ndvi": custom_ndvi, "contact": "Property Owner"
                     }
                 }
                 status.update(label=f"Successfully loaded {full_display}!", state="complete")
@@ -185,7 +197,7 @@ if search_triggered and user_query:
                 st.sidebar.error("Found location, but live weather data is currently unavailable.")
         else:
             status.update(label="Geocoding failed", state="error")
-            st.sidebar.error("Could not match location. Try typing more explicitly.")
+            st.sidebar.error("Could not match location.")
 
 if st.sidebar.button("Reset to Default Presets"):
     st.session_state.client_zones = DEFAULT_ZONES.copy()
@@ -197,10 +209,16 @@ zone_results = {}
 with st.spinner("Executing real-time global telemetry sweep..."):
     for zone in list(st.session_state.client_zones.keys()):
         data = st.session_state.client_zones[zone]
-        prob, input_df, weather = fetch_live_telemetry(data["lat"], data["lon"], data["slope"], data["ndvi"])
-        if prob is not None:
-            zone_results[zone] = {"prob": prob, "input": input_df, "weather": weather, "meta": data}
-            if prob > 0.50:
+        final_prob, raw_prob, input_df, weather = fetch_live_telemetry(data["lat"], data["lon"], data["slope"], data["ndvi"])
+        if final_prob is not None:
+            zone_results[zone] = {
+                "prob": final_prob, 
+                "raw_prob": raw_prob, 
+                "input": input_df, 
+                "weather": weather, 
+                "meta": data
+            }
+            if final_prob > 0.50:
                 alerts.append(zone)
 
 if alerts:
@@ -293,6 +311,7 @@ try:
         for i, (zone, result) in enumerate(zone_results.items()):
             with tabs[i]:
                 prob = result['prob']
+                raw_prob = result['raw_prob']
                 c1, c2, c3 = st.columns([1, 1.5, 1])
                 
                 with c1:
@@ -313,7 +332,10 @@ try:
                     ))
                     fig_gauge.update_layout(height=250, margin=dict(l=10, r=10, t=40, b=10))
                     st.plotly_chart(fig_gauge, use_container_width=True, key=f"gauge_{i}")
+                    
+                    # Diagnostics Debug Output
                     st.caption(f"📍 Coordinates: `{result['meta']['lat']}`, `{result['meta']['lon']}`")
+                    st.caption(f"🔍 **Raw Model Output:** `{raw_prob*100:.2f}%` | **Displayed:** `{prob*100:.2f}%`")
                     
                     if result['meta']['ndvi'] < 0.12:
                         st.info("🏜️ **Safety Mask Active:** Barren terrain detected. False alarm suppressed.")
@@ -322,13 +344,11 @@ try:
                     st.markdown("**AI Diagnostic: What is driving this risk?**")
                     st.caption("🔴 **Red** = Pushing Risk Up | 🔵 **Blue** = Suppressing Risk")
                     
-                    # Unwrap Scikit-Learn Pipeline if necessary
-                    model_to_explain = inference_model
-                    if hasattr(inference_model, 'named_steps'):
-                        model_to_explain = inference_model.named_steps[list(inference_model.named_steps.keys())[-1]]
-                        
+                    # Target the raw underlying XGBoost tree model directly for SHAP
+                    base_model = get_base_estimator(inference_model)
+                    
                     try:
-                        explainer = shap.TreeExplainer(model_to_explain)
+                        explainer = shap.TreeExplainer(base_model)
                         shap_vals = explainer.shap_values(result['input'])
                         
                         if isinstance(shap_vals, list):
@@ -340,22 +360,8 @@ try:
                         else:
                             s_vals = np.array(shap_vals).flatten()
                     except Exception as tree_err:
-                        # Baseline-perturbed fallback for general models
-                        try:
-                            synthetic_bg = pd.concat([result['input']] * 5, ignore_index=True)
-                            synthetic_bg['t'] += np.random.uniform(-5, 5, 5)
-                            synthetic_bg['rh'] += np.random.uniform(-10, 10, 5)
-                            
-                            explainer = shap.Explainer(inference_model.predict_proba, synthetic_bg)
-                            shap_exp = explainer(result['input'])
-                            
-                            if len(shap_exp.values.shape) == 3:
-                                s_vals = shap_exp.values[0, :, 1]
-                            else:
-                                s_vals = shap_exp.values[0]
-                        except Exception as final_err:
-                            st.error(f"⚠️ SHAP diagnostic error: {final_err}")
-                            s_vals = np.zeros(len(MODEL_FEATURES))
+                        st.error(f"⚠️ SHAP diagnostic unwrap exception: {tree_err}")
+                        s_vals = np.zeros(len(MODEL_FEATURES))
 
                     shap_df = pd.DataFrame({"Feature": MODEL_FEATURES, "Impact": s_vals})
                     shap_df["Readable"] = shap_df["Feature"].map(feature_names_map)
@@ -370,10 +376,10 @@ try:
                     ax.tick_params(axis='x', colors='#E0E0E0', labelsize=8)
                     ax.tick_params(axis='y', colors='#E0E0E0', labelsize=9)
 
-                    # Dynamic auto-scaling X axis to ensure small non-zero values are clearly visible
+                    # Dynamic axis scaling to amplify feature contribution bars
                     max_impact = max(abs(shap_df['Impact'].min()), abs(shap_df['Impact'].max()))
                     if max_impact > 0:
-                        ax.set_xlim(-max_impact * 1.25, max_impact * 1.25)
+                        ax.set_xlim(-max_impact * 1.3, max_impact * 1.3)
 
                     plt.tight_layout()
                     st.pyplot(fig_shap, transparent=True)
