@@ -56,23 +56,24 @@ feature_names_map = {
 # PART 2: GLOBAL TELEMETRY & GEOCODING PIPELINE
 # =====================================================================
 def geocode_location(query_str):
-    """Converts a typed city/address into global Lat/Lon coordinates safely with fallback handling."""
+    """Converts a typed city/address into global Lat/Lon coordinates using Open-Meteo's reliable geocoding API."""
     try:
-        clean_query = query_str.strip().replace("'", " ")
+        clean_query = query_str.strip()
         if not clean_query:
             return None, None, None, None
             
-        url = f"https://nominatim.openstreetmap.org/search?q={requests.utils.quote(clean_query)}&format=json&addressdetails=1&limit=1"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrbisSentinel/3.0'}
-        response = requests.get(url, headers=headers, timeout=6)
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={requests.utils.quote(clean_query)}&count=1&language=en&format=json"
+        response = requests.get(url, timeout=6)
         
         if response.status_code == 200:
-            resp = response.json()
-            if resp and isinstance(resp, list) and len(resp) > 0:
-                lat = float(resp[0]["lat"])
-                lon = float(resp[0]["lon"])
-                name = resp[0]["display_name"].split(",")[0]
-                full_display = resp[0]["display_name"]
+            data = response.json()
+            if "results" in data and len(data["results"]) > 0:
+                match = data["results"][0]
+                lat = float(match["latitude"])
+                lon = float(match["longitude"])
+                name = match["name"]
+                country = match.get("country", "")
+                full_display = f"{name}, {country}" if country else name
                 return lat, lon, name, full_display
     except Exception as e:
         print(f"Geocoding Error: {e}")
@@ -155,7 +156,7 @@ user_query = st.sidebar.text_input("Enter Location Name", placeholder="e.g. Athe
 if user_query:
     lat, lon, name, full_display = geocode_location(user_query)
     if lat is not None:
-        st.sidebar.success(f"🎯 **Found:** {name}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
+        st.sidebar.success(f"🎯 **Found:** {full_display}\n\n📌 **Coordinates:** `{lat:.4f}° N, {lon:.4f}° E`")
     else:
         st.sidebar.warning(f"⚠️ Could not resolve \"{user_query}\". Try adding a country name.")
 
@@ -291,7 +292,7 @@ try:
                         mode = "gauge+number",
                         value = prob * 100,
                         title = {'text': "Current Risk", 'font': {'size': 18}},
-                        number = {'suffix": "%", 'valueformat': '.1f'},
+                        number = {'suffix': "%", 'valueformat': '.1f'},
                         gauge = {
                             'axis': {'range': [0, 100]},
                             'bar': {'color': "darkred"},
